@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Character, Skin, Pose,Emote, ImageType
+from .models import Character, Skin, Pose,Emote, ImageType, Franchise
 
 
 
@@ -27,4 +27,8 @@ class ImageTypeSerializers(serializers.ModelSerializer):
     class Meta:
         model = ImageType
         fields = ["name","url_img"]
+class FranchiseSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = Franchise
+        fields = "__all__"
         

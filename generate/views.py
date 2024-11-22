@@ -2,13 +2,13 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Pose, Skin, Emote, ImageType, Character, URLSD
+from .models import Pose, Skin, Emote, ImageType, Character, URLSD, Franchise
 from .utils import modificar_json 
 from user_auth.models import Code
 from django.db import transaction
 from django.core.cache import cache
 
-from .serializers import CharacterSerializers,SkinSerializers, PoseSerializers, EmoteSerializers, ImageTypeSerializers
+from .serializers import CharacterSerializers,SkinSerializers, PoseSerializers, EmoteSerializers, ImageTypeSerializers, FranchiseSerializers
 
 class ConcatenatePromptsView(APIView):
 
@@ -158,9 +158,23 @@ class ConcatenatePromptsView(APIView):
 class CharacterListView(APIView):
     
     def get(self, request):
-        characters = Character.objects.all()
+        # Limitar la consulta directamente desde la base de datos
+        characters = Character.objects.order_by('-id')[:4]  # Trae los últimos 4 registros por ID
         serializer = CharacterSerializers(characters, many=True)
         return Response(serializer.data)
+
+
+class CharactersByFranchise(APIView):
+    def get(self, request, id):
+        try:
+            franchise = Franchise.objects.get(id=id)
+        except Franchise.DoesNotExist:
+            return Response({"error": f"Franchise '{id}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        characters = Character.objects.filter(franchise=franchise)
+        serializer = CharacterSerializers(characters, many=True)
+        return Response(serializer.data)
+#################################################################
 class SkinListByCharacterView(APIView):
     
     def get(self, request, name):
@@ -188,5 +202,12 @@ class ImageTypeListView(APIView):
     def get(self, request):
         image_types = ImageType.objects.all()
         serializer = ImageTypeSerializers(image_types, many=True)
+        return Response(serializer.data)
+    
+class FranchiseListView(APIView):
+    
+    def get(self, request):
+        franchises = Franchise.objects.all()
+        serializer = FranchiseSerializers(franchises, many=True)
         return Response(serializer.data)
 
