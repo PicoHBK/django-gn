@@ -52,7 +52,7 @@ class Pose(models.Model):
 # Modelo para las skins
 class Skin(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='skins')
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, default="default")
     prompt = models.TextField()
     TIER_CHOICES = [
         ('tier1', 'Tier 1'),
