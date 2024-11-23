@@ -18,8 +18,8 @@ class ConcatenatePromptsView(APIView):
             return Response({"error": "The view is currently locked. Please try again later."}, status=status.HTTP_423_LOCKED)
 
         # Bloqueamos la vista para que solo un cliente pueda acceder a la vez
-        cache.set('view_locked', True, timeout=60)
-        print(cache.get('view_locked'))# El bloqueo durará 60 segundos
+        cache.set('view_locked', True, timeout=60)  # El bloqueo durará 60 segundos
+        print(cache.get('view_locked'))
 
         try:
             # Recibimos el payload de la solicitud
@@ -42,9 +42,12 @@ class ConcatenatePromptsView(APIView):
                 # Comprobamos si el código tiene el tier suficiente para acceder a los recursos
                 def check_tier(resource_tier):
                     tiers_order = ['tier1', 'tier2', 'tier3', 'tier4', 'tier5']
-                    resource_tier_index = tiers_order.index(resource_tier)
-                    code_tier_index = tiers_order.index(code_tier)
-                    return code_tier_index >= resource_tier_index
+                    try:
+                        resource_tier_index = tiers_order.index(resource_tier)
+                        code_tier_index = tiers_order.index(code_tier)
+                        return code_tier_index >= resource_tier_index
+                    except ValueError:
+                        return False
 
                 # Inicializamos una lista para almacenar los prompts encontrados
                 prompts = []
@@ -141,7 +144,6 @@ class ConcatenatePromptsView(APIView):
         finally:
             # Liberamos el bloqueo de la vista después de la ejecución
             cache.delete('view_locked')
-
 
 
 
