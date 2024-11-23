@@ -161,7 +161,7 @@ class CharacterListView(APIView):
     
     def get(self, request):
         # Limitar la consulta directamente desde la base de datos
-        characters = Character.objects.order_by('-id')[:4]  # Trae los últimos 4 registros por ID
+        characters = Character.objects.order_by('?')[:10]  # Trae los últimos 4 registros por ID
         serializer = CharacterSerializers(characters, many=True)
         return Response(serializer.data)
 
