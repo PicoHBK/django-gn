@@ -19,7 +19,7 @@ from .serializers import (
     SpecialSerializer,
 )
 
-from .services import check_tier, validate_special,optimize_image
+from .services import check_tier, validate_special,optimize_image,check_tier_level
 
 
 class ConcatenatePromptsView(APIView):
@@ -144,8 +144,30 @@ class ConcatenatePromptsView(APIView):
                     if image_type_instance:
                         prompts.append(image_type_instance.prompt)
 
-                special_name = data.get("special")
-                check_special = validate_special(special_name, code_tier, prompts)
+                specials_name = data.get("special")
+                if specials_name:
+                    check_tier_lvl = check_tier_level(code_tier) + 1
+                    
+                    print(f"lvl code {check_tier_lvl}")
+                    
+                    # Limitar la cantidad de elementos que se recorrerán
+                    max_elements = min(len(specials_name), check_tier_lvl)
+                    for special_name in specials_name[:max_elements]:  # Restringir la iteración
+                        check_special = validate_special(special_name, code_tier, prompts)
+                        if check_special:
+                            print(str(check_special))
+                        else:
+                            return Response(
+                                {
+                                    "error": "The code does not have the required tier to access this Special."
+                                },
+                                status=status.HTTP_403_FORBIDDEN,
+                            )
+
+                        
+                    
+                    
+                """ check_special = validate_special(special_name, code_tier, prompts)
                 if check_special:
                     print(str(check_special))
                 else:
@@ -154,7 +176,7 @@ class ConcatenatePromptsView(APIView):
                             "error": "The code does not have the required tier to access this Special."
                         },
                         status=status.HTTP_403_FORBIDDEN,
-                    )
+                    ) """
 
                 # Concatenamos todos los prompts separados por comas
                 concatenated_prompts = ", ".join(prompts)

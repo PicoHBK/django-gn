@@ -17,6 +17,15 @@ def check_tier(resource_tier, code_tier):
     except ValueError:
         return False
 
+def check_tier_level(code_tier):
+    tiers_order = ["tier1", "tier2", "tier3", "tier4", "tier5"]
+    try:
+        code_tier_index = tiers_order.index(code_tier)
+        return code_tier_index
+
+    except ValueError:
+        return False
+
 
 
 
@@ -27,6 +36,7 @@ def validate_special(special_name, code_tier, prompts):
         special = Special.objects.filter(name=special_name).first()
         if special:
             if not check_tier(special.tier, code_tier):
+                print("No cumplio el tier")
                 return " "
             else:
                 # Obtener los prompts, si existen
@@ -66,6 +76,7 @@ def validate_special(special_name, code_tier, prompts):
 
                 return updated_prompts
     else:
+        print("No existe el special name")
         return " "
     
 
