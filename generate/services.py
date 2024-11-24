@@ -2,6 +2,10 @@ from .models import Special
 import random
 import re
 
+from PIL import Image
+import base64
+from io import BytesIO
+
 
 def check_tier(resource_tier, code_tier):
     tiers_order = ["tier1", "tier2", "tier3", "tier4", "tier5"]
@@ -63,6 +67,41 @@ def validate_special(special_name, code_tier, prompts):
                 return updated_prompts
     else:
         return " "
+    
+
+
+
+
+def optimize_image(image_base64):
+    """
+    Convierte una imagen en base64 a formato JPEG con optimización de calidad y devuelve una lista.
+    Muestra el tamaño de la imagen antes y después de la optimización.
+    """
+    # Decodificar la imagen Base64
+    image_data = base64.b64decode(image_base64)
+    
+    # Mostrar el tamaño de la imagen original
+    print(f"Tamaño de la imagen original: {len(image_data) / 1024:.2f} KB")
+    
+    # Abrir la imagen usando Pillow
+    img = Image.open(BytesIO(image_data))
+    
+    # Convertir la imagen a formato JPEG (ajustar calidad según lo necesites)
+    output = BytesIO()
+    img.convert("RGB").save(output, format="JPEG", quality=80)  # Calidad 85 para optimizar el tamaño
+    
+    # Codificar la imagen optimizada en Base64
+    output.seek(0)
+    optimized_image_base64 = base64.b64encode(output.read()).decode('utf-8')
+    
+    # Mostrar el tamaño de la imagen optimizada
+    optimized_image_data = base64.b64decode(optimized_image_base64)
+    print(f"Tamaño de la imagen optimizada: {len(optimized_image_data) / 1024:.2f} KB")
+    
+    # Crear una lista que contiene la imagen optimizada en Base64
+    return [optimized_image_base64]
+
+
 
 
                 

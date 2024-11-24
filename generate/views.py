@@ -8,6 +8,7 @@ from user_auth.models import Code
 from django.db import transaction
 from django.core.cache import cache
 
+
 from .serializers import (
     CharacterSerializers,
     SkinSerializers,
@@ -18,7 +19,7 @@ from .serializers import (
     SpecialSerializer,
 )
 
-from .services import check_tier, validate_special
+from .services import check_tier, validate_special,optimize_image
 
 
 class ConcatenatePromptsView(APIView):
@@ -65,7 +66,7 @@ class ConcatenatePromptsView(APIView):
 
                 # Buscamos en el modelo 'Pose' usando el valor de 'pose' del payload
                 pose_name = data.get("pose")
-  
+
                 if pose_name:
                     pose = Pose.objects.filter(name=pose_name).first()
                     if pose:
@@ -142,7 +143,7 @@ class ConcatenatePromptsView(APIView):
                     ).first()
                     if image_type_instance:
                         prompts.append(image_type_instance.prompt)
-                        
+
                 special_name = data.get("special")
                 check_special = validate_special(special_name, code_tier, prompts)
                 if check_special:
@@ -154,7 +155,6 @@ class ConcatenatePromptsView(APIView):
                         },
                         status=status.HTTP_403_FORBIDDEN,
                     )
-    
 
                 # Concatenamos todos los prompts separados por comas
                 concatenated_prompts = ", ".join(prompts)
@@ -188,9 +188,11 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_400_BAD_REQUEST,
                             )
 
+                        img_optimized = optimize_image(response.json().get("images")[0])
+
                         return Response(
                             {
-                                "images": response.json().get("images"),
+                                "images": img_optimized,
                                 "tier": code.tier,  # El tier del código
                                 "uses_left": uses_left,  # Los usos restantes del código
                                 "code": code.code,
@@ -240,8 +242,6 @@ class CharacterListView(APIView):
         # Serializar los datos
         serializer = CharacterSerializers(characters, many=True)
         return Response(serializer.data)
-
-
 
 
 class CharactersByFranchise(APIView):
