@@ -25,28 +25,34 @@ def validate_special(special_name, code_tier, prompts):
             if not check_tier(special.tier, code_tier):
                 return " "
             else:
-                # Obtener los nombres de los tags como una lista de strings
+                # Obtener los prompts, si existen
                 prompts.append(special.prompt)
-                tags = [tag.name for tag in special.tags_required.all()]
-                tags_deleted = [tag.name for tag in special.tags_deleted.all()]  # Obtener los tags eliminados
 
-                # Verificar si al menos uno de los tags está presente en cada elemento de prompts
-                found_tag = False  # Variable para verificar si se encontró algún tag
+                # Verificar si existen tags_required y tags_deleted, si no, usamos listas vacías
+                tags = []
+                tags_deleted = []
 
+                if hasattr(special, 'tags_required') and special.tags_required.exists():
+                    tags = [tag.name for tag in special.tags_required.all()]
+
+                if hasattr(special, 'tags_deleted') and special.tags_deleted.exists():
+                    tags_deleted = [tag.name for tag in special.tags_deleted.all()]
+
+                # Verificar si al menos uno de los tags está presente en algún prompt
+                found_tag = False
                 for prompt in prompts:
                     if any(tag in prompt for tag in tags):
                         found_tag = True
                         break  # Salir del bucle si se encuentra un tag en algún prompt
 
-                # Si no se encontró ningún tag, agregar un tag aleatorio a la lista prompts
-                if not found_tag:
+                # Si no se encontró ningún tag, agregar un tag aleatorio a la lista de prompts
+                if not found_tag and tags:
                     random_tag = random.choice(tags)
                     prompts.append(f"({random_tag}:1.2)")  # Agregar el tag aleatorio
 
-                # Depurar los prompts eliminando todas las palabras o cadenas que coincidan con los tags eliminados
+                # Depurar los prompts eliminando todas las palabras o cadenas que coincidan con tags_deleted
                 updated_prompts = []
                 for prompt in prompts:
-                    # Usamos expresiones regulares para eliminar las coincidencias con tags_deleted
                     for tag in tags_deleted:
                         # Eliminar las palabras o frases completas que coincidan con tags_deleted
                         prompt = re.sub(r'\b' + re.escape(tag) + r'\b', '', prompt)
