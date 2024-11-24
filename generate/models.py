@@ -90,3 +90,32 @@ class ImageType(models.Model):
 
 class URLSD(models.Model):
     url = models.URLField(unique=True)
+    
+class Tag(models.Model):
+    name = models.CharField(max_length=50, unique=True)  # Nombre único para identificar el tag
+
+    def __str__(self):
+        return self.name
+
+
+class Special(models.Model):
+    name = models.CharField(max_length=255)
+    prompt = models.TextField()
+    TIER_CHOICES = [
+        ('tier1', 'Tier 1'),
+        ('tier2', 'Tier 2'),
+        ('tier3', 'Tier 3'),
+        ('tier4', 'Tier 4'),
+        ('tier5', 'Tier 5'),
+    ]
+    tier = models.CharField(
+        max_length=5,
+        choices=TIER_CHOICES,
+        default='tier1',  # El valor predeterminado es 'tier1'
+    )
+    tags_required = models.ManyToManyField(Tag, related_name="specialsAdd", blank=True)  # Relación opcional
+    tags_deleted = models.ManyToManyField(Tag, related_name="specialsDel", blank=True)  # Relación opcional
+  # Relación muchos a muchos con Tag
+
+    def __str__(self):
+        return f"{self.name}- {self.tier}"

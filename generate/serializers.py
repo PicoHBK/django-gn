@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Character, Skin, Pose,Emote, ImageType, Franchise
+from .models import Character, Skin, Pose,Emote, ImageType, Franchise,Tag, Special
 
 
 
@@ -31,4 +31,16 @@ class FranchiseSerializers(serializers.ModelSerializer):
     class Meta:
         model = Franchise
         fields = "__all__"
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name']  # Campos básicos para el modelo Tag
+
+
+class SpecialSerializer(serializers.ModelSerializer):  # Solo lectura de tags asociados
+
+    class Meta:
+        model = Special
+        fields = ["id", "name", "tier"]
         

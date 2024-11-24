@@ -7,7 +7,8 @@ from .views import (
     EmoteListView,
     ImageTypeListView,
     FranchiseListView,
-    CharactersByFranchise
+    CharactersByFranchise,
+    SpecialListView
 )
 
 urlpatterns = [
@@ -23,5 +24,6 @@ urlpatterns = [
     path("imagetype/list", ImageTypeListView.as_view(), name="imagetype-list"),
     path("franchise/list", FranchiseListView.as_view(), name="franchises"),
     path("franchise/<int:id>/characters", CharactersByFranchise.as_view(), name="characters-by-franchise"),
+    path("special/list", SpecialListView.as_view(), name="special-list"),
     
 ]
