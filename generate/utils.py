@@ -11,13 +11,13 @@ def modificar_json(file_path, new_prompt, new_hr_prompt, image_type):
     data['prompt'] = new_prompt
     data['hr_prompt'] = new_hr_prompt
     
-    if image_type == "portrait" :
+    if image_type == "Portrait" :
         data["width"] = 500
         data["height"] = 500
-    if image_type == "full-body" :
+    if image_type == "Full Body" :
         data["width"] = 448
         data["height"] = 888
-    if image_type == "cowboy" :
+    if image_type == "Cowboy Shot" :
         data["width"] = 500
         data["height"] = 700
     
