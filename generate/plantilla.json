@@ -153,7 +153,7 @@
     "hr_second_pass_steps": 7,
     "hr_upscaler": "R-ESRGAN 2x+",
     "n_iter": 1,
-    "negative_prompt": "(low quality, worst quality:1.4),(cleavage:1.5),(nsfw,nude:1.4),,(show panties) (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2)",
+    "negative_prompt": "(low quality, worst quality:1.4),(cleavage:1.5),(nsfw,nude:1.4),,(show panties) (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2),bad_pictures, bad_prompt_version2-neg, FastNegativeV2, negative_hand-neg, NegativeDynamics-neg",
     "override_settings": {},
     "override_settings_restore_afterwards": true,
     "prompt": "(standing:1.4), (masterpiece, best quality:1.4), insaneres, absurdres, solo, looking at viewer,BREAK \r\nMainOutfit_AerithGainsborough_ownwaifu, aerith gainsborough,   \r\n1girl, brown hair, green eyes, hair intakes, long hair, hair ribbon, jewelry, choker, braid, sidelocks, parted bangs, braided ponytail,  medium breasts, necklace, lips, breasts, bolo tie, side drill, bangs, collarbone, drill hair, hair bow, \r\nred jacket, pink dress, long dress, cropped jacket, short sleeves, bracelet, pink bow, cleavage, pink ribbon, bangle, open jacket, belt, buttons,  garden, wisteria, outdoors, <lora:FinalFantasy_AerithGainsborough_ownwaifu:0.85> , depth of field, solo,, (happy512:1.2), (fullbody:1.4), (barefoot:1.4)",
