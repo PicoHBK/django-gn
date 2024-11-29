@@ -290,7 +290,12 @@ class SkinListByCharacterView(APIView):
         return Response(serializer.data)
 
 
-class PoseListView(APIView):
+class PoseListPreviewView(APIView):
+    def get(self, request):
+        poses = Pose.objects.all()[:4]
+        serializer = PoseSerializers(poses, many=True)
+        return Response(serializer.data)
+class PoseListAllView(APIView):
     def get(self, request):
         poses = Pose.objects.all()
         serializer = PoseSerializers(poses, many=True)
