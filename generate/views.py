@@ -2,11 +2,13 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Pose, Skin, Emote, ImageType, Character, URLSD, Franchise, Special
+from .models import Pose, Skin, Emote, ImageType, Character, URLSD, Franchise, Special, Tag
 from .utils import modificar_json
 from user_auth.models import Code
 from django.db import transaction
 from django.core.cache import cache
+
+from rest_framework.permissions import IsAdminUser
 
 
 from .serializers import (
@@ -17,6 +19,9 @@ from .serializers import (
     ImageTypeSerializers,
     FranchiseSerializers,
     SpecialSerializer,
+    SkinSerializersAdmin,
+    TagSerializers,
+    SpecialSerializerAdmin,
 )
 
 from .services import check_tier, validate_special,optimize_image,check_tier_level
@@ -280,6 +285,47 @@ class CharactersByFranchise(APIView):
         serializer = CharacterSerializers(characters, many=True)
         return Response(serializer.data)
 
+class CharacterEditById(APIView):
+    permission_classes = [IsAdminUser]
+    def patch (self, request, id):
+        try:
+            character = Character.objects.get(id=id)
+            serializer = CharacterSerializers(character, data= request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        except Character.DoesNotExist:
+            return Response(
+                {"error": f"Character '{id}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+class CharacterDeleteView(APIView):
+    permission_classes = [IsAdminUser]
+    def delete(self, request, id):
+        try:
+            # Intenta obtener el personaje con el ID proporcionado
+            character = Character.objects.get(id=id)
+            character.delete()  # Elimina el personaje
+            return Response(
+                {"message": f"Character with id '{id}' has been deleted."},
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        except Character.DoesNotExist:
+            # Si no se encuentra el personaje con el ID proporcionado
+            return Response(
+                {"error": f"Character '{id}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+class CharacterCreateView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request):
+        serializer = CharacterSerializers(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 #################################################################
 class SkinListByCharacterView(APIView):
@@ -288,7 +334,57 @@ class SkinListByCharacterView(APIView):
         skins = Skin.objects.filter(character=character)
         serializer = SkinSerializers(skins, many=True)
         return Response(serializer.data)
+class SkinListByCharacterAdminView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request, name):
+        character = Character.objects.get(name=name)
+        skins = Skin.objects.filter(character=character)
+        serializer = SkinSerializersAdmin(skins, many=True)
+        return Response(serializer.data)
+    
+class SkinEditByEditView(APIView):
+    permission_classes = [IsAdminUser]
+    def patch(self, request, id):
+        print(request.data)
+        try:
+            skin = Skin.objects.get(id=id)
+            serializer = SkinSerializersAdmin(skin, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        except Skin.DoesNotExist:
+            return Response(
+                {"error": f"Skin '{id}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+class SkinDeleteView(APIView):
+    permission_classes = [IsAdminUser]
+    def delete(self, request, id):
+        try:
+            skin = Skin.objects.get(id=id)
+            skin.delete()
+            return Response(
+                {"message": f"Skin with id '{id}' has been deleted."},
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        except Skin.DoesNotExist:
+            return Response(
+                {"error": f"Skin '{id}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
+class SkinCreateView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request):
+        serializer = SkinSerializersAdmin(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+########################################
 
 class PoseListPreviewView(APIView):
     def get(self, request):
@@ -315,12 +411,62 @@ class ImageTypeListView(APIView):
         serializer = ImageTypeSerializers(image_types, many=True)
         return Response(serializer.data)
 
+#################################################################
 
+class FranchiseCreateView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request):
+        serializer = FranchiseSerializers(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class FranchiseDeleteView(APIView):
+    permission_classes = [IsAdminUser]
+    def delete(self, request, id):
+        try:
+            franchise = Franchise.objects.get(id=id)  # Buscar la franquicia por su id
+            franchise.delete()  # Eliminar la franquicia
+            return Response({"detail": "Franchise deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        except Franchise.DoesNotExist:
+            return Response({"detail": "Franchise not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        
 class FranchiseListView(APIView):
     def get(self, request):
         franchises = Franchise.objects.all()
         serializer = FranchiseSerializers(franchises, many=True)
         return Response(serializer.data)
+    
+class FranchiseEditById(APIView):
+    permission_classes = [IsAdminUser]
+    def patch(self, request, id):
+        try:
+            # Obtener la franquicia de la base de datos
+            franchise = Franchise.objects.get(id=id)
+            
+            # Mostrar los datos recibidos
+            print("Received data:", request.data)
+
+            # Serializar los datos y validarlos (con partial=True para permitir actualizaciones parciales)
+            serializer = FranchiseSerializers(franchise, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                # Mostrar errores si la validación falla
+                print("Validation errors:", serializer.errors)
+                return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Franchise.DoesNotExist:
+            return Response(
+                {"error": f"Franchise '{id}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+    
+#################################################################
 
 
 class SpecialListView(APIView):
@@ -332,3 +478,105 @@ class SpecialListView(APIView):
         specials = Special.objects.all()  # Obtiene todos los objetos Special
         serializer = SpecialSerializer(specials, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class SpecialListAdminView(APIView):
+    """
+    Lista todos los objetos de Special para el admin
+    """
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        specials = Special.objects.all()  # Obtiene todos los objetos Special
+        serializer = SpecialSerializerAdmin(specials, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class SpecialCreateView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request):
+        serializer = SpecialSerializerAdmin(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class SpecialEditByIdView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, id):
+        try:
+            # Intenta obtener el objeto "Special" por su id
+            special = Special.objects.get(id=id)
+            
+            # Serializa los datos del objeto y valida los datos recibidos
+            serializer = SpecialSerializerAdmin(special, data=request.data, partial=True)
+            
+            if serializer.is_valid():  # Si los datos son válidos
+                serializer.save()  # Guarda los cambios en la base de datos
+                return Response(serializer.data, status=status.HTTP_200_OK)  # Devuelve los datos actualizados
+                
+            else:  # Si los datos no son válidos
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  # Devuelve los errores
+            
+        except Special.DoesNotExist:  # Excepción específica si el objeto no se encuentra
+            return Response({"error": "Special not found."}, status=status.HTTP_404_NOT_FOUND)  # Mensaje de error si no se encuentra el objeto
+        except Exception as e:  # Captura cualquier otra excepción inesperada
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
+
+class SpecialDeleteByIdView(APIView):
+    permission_classes = [IsAdminUser]
+    def delete(self, request, id):
+        try:
+            special = Special.objects.get(id=id)  # Obtiene el objeto "Special" por su id
+            special.delete()  # Elimina el objeto "Special" de la base de datos
+            return Response({"detail": "Special deleted successfully"}, status=status.HTTP_204_NO_CONTENT)  # Devuelve un mensaje de confirmación si la eliminación es exitosa
+            
+        except Special.DoesNotExist:  # Excepción específica si el objeto no se encuentra
+            return Response({"error": "Special not found."}, status=status.HTTP_404_NOT_FOUND)  # Mensaje de error si no se encuentra el objeto
+        except Exception as e:  # Captura cualquier otra excepción inesperada
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
+    
+    
+##########################################################
+
+class TagListView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        tags = Tag.objects.all()
+        serializer = TagSerializers(tags, many=True)
+        return Response(serializer.data)
+    
+class TagEditViewById(APIView):
+    permission_classes = [IsAdminUser]
+    def patch(self, request, id):
+        try:
+            tag = Tag.objects.get(id=id)
+            serializer = TagSerializers(tag, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            else:
+                return Response(serializer.errors)
+        except Tag.DoesNotExist:
+            return Response({"detail": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+class TagDeleteById(APIView):
+    permission_classes = [IsAdminUser]
+    def delete(self, request, id):
+        try:
+            tag = Tag.objects.get(id=id)
+            tag.delete()
+            return Response({"detail": "Tag deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        except Tag.DoesNotExist:
+            return Response({"detail": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class TagCreateView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request):
+        serializer = TagSerializers(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        
