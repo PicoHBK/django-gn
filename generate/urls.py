@@ -28,6 +28,15 @@ from .views import (
     TagEditViewById,
     TagDeleteById,
     TagCreateView,
+    URLSDEditView,
+    PoseListAdminView,
+    PoseCreateView,
+    PoseDeleteByIdView,
+    PoseEditByIdView,
+    EmoteListAdminView,
+    EmoteCreateView,
+    EmoteDeleteByIdView,
+    EmoteEditByIdView,
 )
 
 urlpatterns = [
@@ -51,7 +60,23 @@ urlpatterns = [
     
     path("pose/preview", PoseListPreviewView.as_view(), name="pose-list"),
     path("pose/all", PoseListAllView.as_view(), name="pose-list-all"),
+    path("pose/all/admin",PoseListAdminView.as_view(), name="pose-list-admin"),
+    path("pose/new",PoseCreateView.as_view(), name="pose-create-admin"),
+    path("pose/<int:id>/edit",PoseEditByIdView.as_view(), name="pose-edit-admin"),
+    path("pose/<int:id>/delete",PoseDeleteByIdView.as_view(), name="pose-delete-admin"),
+    
+    
+    
     path("emote/list", EmoteListView.as_view(), name="emote-list"),
+    path("emote/<int:id>/edit", EmoteEditByIdView.as_view(), name="emote-list"),
+    path("emote/<int:id>/delete", EmoteDeleteByIdView.as_view(), name="emote-list"),
+    path("emote/new", EmoteCreateView.as_view(), name="emote-list"),
+    path("emote/list/admin", EmoteListAdminView.as_view(), name="emote-list"),
+    
+    
+    
+    
+    
     path("imagetype/list", ImageTypeListView.as_view(), name="imagetype-list"),
     
     
@@ -67,7 +92,7 @@ urlpatterns = [
     path("tag/new" ,TagCreateView.as_view(),name ="tag-create-admin"),
     
     
-    
+    path("url/sd",URLSDEditView.as_view(),name ="url-edit"),
     
     
     

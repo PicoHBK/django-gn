@@ -22,6 +22,9 @@ from .serializers import (
     SkinSerializersAdmin,
     TagSerializers,
     SpecialSerializerAdmin,
+    URLSDSerializers,
+    PoseAdminSerializers,
+    EmoteAdminSerializers,
 )
 
 from .services import check_tier, validate_special,optimize_image,check_tier_level
@@ -397,12 +400,128 @@ class PoseListAllView(APIView):
         serializer = PoseSerializers(poses, many=True)
         return Response(serializer.data)
 
+class PoseListAdminView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        poses = Pose.objects.all()
+        serializer = PoseAdminSerializers(poses, many=True)
+        return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+
+class PoseEditByIdView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request,id):
+        try:
+            pose = Pose.objects.get(id=id)
+        except Pose.DoesNotExist:
+            return Response(
+                {"error": "Pose not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = PoseAdminSerializers(pose, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PoseDeleteByIdView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def delete(self, request, id):
+        try:
+            pose = Pose.objects.get(id=id)
+        except Pose.DoesNotExist:
+            return Response(
+                {"error": "Pose not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        pose.delete()
+        return Response(
+            {"message": "Pose deleted successfully."}, 
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+class PoseCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = PoseAdminSerializers(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+    
+############################################
+
 
 class EmoteListView(APIView):
     def get(self, request):
         emotes = Emote.objects.all()
         serializer = EmoteSerializers(emotes, many=True)
         return Response(serializer.data)
+
+class EmoteListAdminView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        emotes = Emote.objects.all()
+        serializer = EmoteAdminSerializers(emotes, many=True)
+        return Response(serializer.data)
+
+class EmoteEditByIdView(APIView):
+    permission_classes = [IsAdminUser]
+    def patch(self, request, id):
+        try:
+            emote = Emote.objects.get(id=id)
+        except Emote.DoesNotExist:
+            return Response(
+                {"error": "Emote not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = EmoteAdminSerializers(emote, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class EmoteDeleteByIdView(APIView):
+    permission_classes = [IsAdminUser]
+    def delete(self, request, id):
+        try:
+            emote = Emote.objects.get(id=id)
+        except Emote.DoesNotExist:
+            return Response(
+                {"error": "Emote not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        emote.delete()
+        return Response(
+            {"message": "Emote deleted successfully."},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+class EmoteCreateView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request):
+        serializer = EmoteAdminSerializers(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+############################################
 
 
 class ImageTypeListView(APIView):
@@ -578,5 +697,42 @@ class TagCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+
+
+#######################################################
+class URLSDEditView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request):
+        try:
+            # Obtener el único objeto URLSD
+            urlsd = URLSD.objects.last()  # Asume que solo hay uno, toma el último
+            if not urlsd:
+                return Response(
+                    {"detail": "No URLSD instance found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Validar que solo se reciba el atributo 'url'
+            if "url" not in request.data:
+                return Response(
+                    {"detail": "Invalid payload, 'url' is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer = URLSDSerializers(urlsd, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
         
         

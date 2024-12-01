@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Character, Skin, Pose,Emote, ImageType, Franchise,Tag, Special, Tag
+from .models import Character, Skin, Pose,Emote, ImageType, Franchise,Tag, Special,URLSD
 
 
 
@@ -21,11 +21,20 @@ class PoseSerializers(serializers.ModelSerializer):
     class Meta:
         model = Pose
         fields = ["name","tier"]
+        
+class PoseAdminSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = Pose
+        fields = "__all__"
 
 class EmoteSerializers(serializers.ModelSerializer):
     class Meta:
         model = Emote
         fields = ["name"]
+class EmoteAdminSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = Emote
+        fields = "__all__"
 
 class ImageTypeSerializers(serializers.ModelSerializer):
     class Meta:
@@ -60,4 +69,9 @@ class SpecialSerializerAdmin(serializers.ModelSerializer):  # Solo lectura de ta
 class TagSerializers(serializers.ModelSerializer):
     class Meta:
         model = Tag
+        fields = "__all__"
+        
+class URLSDSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = URLSD
         fields = "__all__"
