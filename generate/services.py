@@ -31,7 +31,7 @@ def check_tier_level(code_tier):
 
 
 
-def validate_special(special_name, code_tier, prompts):
+def validate_special(special_name, code_tier, prompts,neg_prompts):
     if special_name:
         special = Special.objects.filter(name=special_name).first()
         if special:
@@ -40,7 +40,8 @@ def validate_special(special_name, code_tier, prompts):
                 return " "
             else:
                 # Obtener los prompts, si existen
-                prompts.append(special.prompt)
+                claned_prompt= extract_neg_prompt(special.prompt, neg_prompts)
+                prompts.append(claned_prompt)
 
                 # Verificar si existen tags_required y tags_deleted, si no, usamos listas vacías
                 tags = []

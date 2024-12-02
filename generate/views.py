@@ -131,7 +131,8 @@ class ConcatenatePromptsView(APIView):
                                         },
                                         status=status.HTTP_403_FORBIDDEN,
                                     )
-                                prompts.append(skin.prompt)
+                                cleaned_prompt = extract_neg_prompt(skin.prompt,neg_prompts)
+                                prompts.append(cleaned_prompt)
                             else:
                                 return Response(
                                     {
@@ -179,7 +180,7 @@ class ConcatenatePromptsView(APIView):
                         :max_elements
                     ]:  # Restringir la iteración
                         check_special = validate_special(
-                            special_name, code_tier, prompts
+                            special_name, code_tier, prompts, neg_prompts
                         )
                         if check_special:
                             print("____")
