@@ -2,7 +2,17 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Pose, Skin, Emote, ImageType, Character, URLSD, Franchise, Special, Tag
+from .models import (
+    Pose,
+    Skin,
+    Emote,
+    ImageType,
+    Character,
+    URLSD,
+    Franchise,
+    Special,
+    Tag,
+)
 from .utils import modificar_json
 from user_auth.models import Code
 from django.db import transaction
@@ -27,7 +37,7 @@ from .serializers import (
     EmoteAdminSerializers,
 )
 
-from .services import check_tier, validate_special,optimize_image,check_tier_level
+from .services import check_tier, validate_special, optimize_image, check_tier_level, extract_neg_prompt
 
 
 class ConcatenatePromptsView(APIView):
@@ -71,6 +81,7 @@ class ConcatenatePromptsView(APIView):
 
                 # Inicializamos una lista para almacenar los prompts encontrados
                 prompts = []
+                neg_prompts = []
 
                 # Buscamos en el modelo 'Pose' usando el valor de 'pose' del payload
                 pose_name = data.get("pose")
@@ -85,7 +96,11 @@ class ConcatenatePromptsView(APIView):
                                 },
                                 status=status.HTTP_403_FORBIDDEN,
                             )
-                        prompts.append(pose.prompt)
+
+                        if pose.prompt:  # Aseguramos que pose.prompt no sea None o vacío
+                            cleaned_prompt = extract_neg_prompt(pose.prompt, neg_prompts)
+                            prompts.append(cleaned_prompt)
+
 
                 # Buscamos el 'Character' usando el valor de 'character' del payload
                 character_name = data.get("character")
@@ -155,15 +170,19 @@ class ConcatenatePromptsView(APIView):
                 specials_name = data.get("special")
                 if specials_name:
                     check_tier_lvl = check_tier_level(code_tier) + 1
-                    
+
                     print(f"lvl code {check_tier_lvl}")
-                    
+
                     # Limitar la cantidad de elementos que se recorrerán
                     max_elements = min(len(specials_name), check_tier_lvl * 2)
-                    for special_name in specials_name[:max_elements]:  # Restringir la iteración
-                        check_special = validate_special(special_name, code_tier, prompts)
+                    for special_name in specials_name[
+                        :max_elements
+                    ]:  # Restringir la iteración
+                        check_special = validate_special(
+                            special_name, code_tier, prompts
+                        )
                         if check_special:
-                            print(str(check_special))
+                            print("____")
                         else:
                             return Response(
                                 {
@@ -172,9 +191,6 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_403_FORBIDDEN,
                             )
 
-                        
-                    
-                    
                 """ check_special = validate_special(special_name, code_tier, prompts)
                 if check_special:
                     print(str(check_special))
@@ -188,6 +204,8 @@ class ConcatenatePromptsView(APIView):
 
                 # Concatenamos todos los prompts separados por comas
                 concatenated_prompts = ", ".join(prompts)
+                concatenated_neg_prompts = ", ".join(neg_prompts)
+
 
                 # Solo si hay recursos válidos, realizamos la solicitud a la URL externa
                 if prompts:
@@ -199,8 +217,14 @@ class ConcatenatePromptsView(APIView):
                         file_path,
                         concatenated_prompts,
                         concatenated_prompts,
+                        concatenated_neg_prompts,
                         image_type,
                     )
+                    
+                    print("Mandando..........")
+                    
+                    print(modified_data["prompt"])
+                    print(modified_data["negative_prompt"])
 
                     # Realizamos una solicitud a otra URL con el JSON modificado como payload
                     url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
@@ -230,10 +254,16 @@ class ConcatenatePromptsView(APIView):
                             status=status.HTTP_200_OK,
                         )
                     else:
+                        # Imprimir el error en la consola
+                        print(
+                            f"Error: Received status code {response.status_code} with response: {response.text}"
+                        )
+
                         return Response(
                             {"error": "The AI is unavailable. Please try again later."},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
+
                 else:
                     # Si no hay recursos válidos, no usamos el código y devolvemos un error
                     return Response(
@@ -288,12 +318,16 @@ class CharactersByFranchise(APIView):
         serializer = CharacterSerializers(characters, many=True)
         return Response(serializer.data)
 
+
 class CharacterEditById(APIView):
     permission_classes = [IsAdminUser]
-    def patch (self, request, id):
+
+    def patch(self, request, id):
         try:
             character = Character.objects.get(id=id)
-            serializer = CharacterSerializers(character, data= request.data, partial=True)
+            serializer = CharacterSerializers(
+                character, data=request.data, partial=True
+            )
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_200_OK)
@@ -303,8 +337,10 @@ class CharacterEditById(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+
 class CharacterDeleteView(APIView):
     permission_classes = [IsAdminUser]
+
     def delete(self, request, id):
         try:
             # Intenta obtener el personaje con el ID proporcionado
@@ -320,8 +356,11 @@ class CharacterDeleteView(APIView):
                 {"error": f"Character '{id}' not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+
 class CharacterCreateView(APIView):
     permission_classes = [IsAdminUser]
+
     def post(self, request):
         serializer = CharacterSerializers(data=request.data)
         if serializer.is_valid():
@@ -337,16 +376,21 @@ class SkinListByCharacterView(APIView):
         skins = Skin.objects.filter(character=character)
         serializer = SkinSerializers(skins, many=True)
         return Response(serializer.data)
+
+
 class SkinListByCharacterAdminView(APIView):
     permission_classes = [IsAdminUser]
+
     def get(self, request, name):
         character = Character.objects.get(name=name)
         skins = Skin.objects.filter(character=character)
         serializer = SkinSerializersAdmin(skins, many=True)
         return Response(serializer.data)
-    
+
+
 class SkinEditByEditView(APIView):
     permission_classes = [IsAdminUser]
+
     def patch(self, request, id):
         print(request.data)
         try:
@@ -360,8 +404,11 @@ class SkinEditByEditView(APIView):
                 {"error": f"Skin '{id}' not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+
 class SkinDeleteView(APIView):
     permission_classes = [IsAdminUser]
+
     def delete(self, request, id):
         try:
             skin = Skin.objects.get(id=id)
@@ -376,8 +423,10 @@ class SkinDeleteView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+
 class SkinCreateView(APIView):
     permission_classes = [IsAdminUser]
+
     def post(self, request):
         serializer = SkinSerializersAdmin(data=request.data)
         if serializer.is_valid():
@@ -389,42 +438,46 @@ class SkinCreateView(APIView):
 
 ########################################
 
+
 class PoseListPreviewView(APIView):
     def get(self, request):
         poses = Pose.objects.all()[:4]
         serializer = PoseSerializers(poses, many=True)
         return Response(serializer.data)
+
+
 class PoseListAllView(APIView):
     def get(self, request):
         poses = Pose.objects.all()
         serializer = PoseSerializers(poses, many=True)
         return Response(serializer.data)
 
+
 class PoseListAdminView(APIView):
     permission_classes = [IsAdminUser]
-    
+
     def get(self, request):
         poses = Pose.objects.all()
         serializer = PoseAdminSerializers(poses, many=True)
         return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
+
 class PoseEditByIdView(APIView):
     permission_classes = [IsAdminUser]
 
-    def patch(self, request,id):
+    def patch(self, request, id):
         try:
             pose = Pose.objects.get(id=id)
         except Pose.DoesNotExist:
             return Response(
-                {"error": "Pose not found."}, 
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Pose not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        
+
         serializer = PoseAdminSerializers(pose, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -436,15 +489,14 @@ class PoseDeleteByIdView(APIView):
             pose = Pose.objects.get(id=id)
         except Pose.DoesNotExist:
             return Response(
-                {"error": "Pose not found."}, 
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Pose not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        
+
         pose.delete()
         return Response(
-            {"message": "Pose deleted successfully."}, 
-            status=status.HTTP_204_NO_CONTENT
+            {"message": "Pose deleted successfully."}, status=status.HTTP_204_NO_CONTENT
         )
+
 
 class PoseCreateView(APIView):
     permission_classes = [IsAdminUser]
@@ -454,11 +506,10 @@ class PoseCreateView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    
-    
+
+
 ############################################
 
 
@@ -468,50 +519,56 @@ class EmoteListView(APIView):
         serializer = EmoteSerializers(emotes, many=True)
         return Response(serializer.data)
 
+
 class EmoteListAdminView(APIView):
     permission_classes = [IsAdminUser]
+
     def get(self, request):
         emotes = Emote.objects.all()
         serializer = EmoteAdminSerializers(emotes, many=True)
         return Response(serializer.data)
 
+
 class EmoteEditByIdView(APIView):
     permission_classes = [IsAdminUser]
+
     def patch(self, request, id):
         try:
             emote = Emote.objects.get(id=id)
         except Emote.DoesNotExist:
             return Response(
-                {"error": "Emote not found."},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Emote not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        
+
         serializer = EmoteAdminSerializers(emote, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class EmoteDeleteByIdView(APIView):
     permission_classes = [IsAdminUser]
+
     def delete(self, request, id):
         try:
             emote = Emote.objects.get(id=id)
         except Emote.DoesNotExist:
             return Response(
-                {"error": "Emote not found."},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Emote not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        
+
         emote.delete()
         return Response(
             {"message": "Emote deleted successfully."},
-            status=status.HTTP_204_NO_CONTENT
+            status=status.HTTP_204_NO_CONTENT,
         )
+
 
 class EmoteCreateView(APIView):
     permission_classes = [IsAdminUser]
+
     def post(self, request):
         serializer = EmoteAdminSerializers(data=request.data)
         if serializer.is_valid():
@@ -519,8 +576,8 @@ class EmoteCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    
+
+
 ############################################
 
 
@@ -530,10 +587,13 @@ class ImageTypeListView(APIView):
         serializer = ImageTypeSerializers(image_types, many=True)
         return Response(serializer.data)
 
+
 #################################################################
+
 
 class FranchiseCreateView(APIView):
     permission_classes = [IsAdminUser]
+
     def post(self, request):
         serializer = FranchiseSerializers(data=request.data)
         if serializer.is_valid():
@@ -542,49 +602,63 @@ class FranchiseCreateView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class FranchiseDeleteView(APIView):
     permission_classes = [IsAdminUser]
+
     def delete(self, request, id):
         try:
             franchise = Franchise.objects.get(id=id)  # Buscar la franquicia por su id
             franchise.delete()  # Eliminar la franquicia
-            return Response({"detail": "Franchise deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"detail": "Franchise deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT,
+            )
         except Franchise.DoesNotExist:
-            return Response({"detail": "Franchise not found"}, status=status.HTTP_404_NOT_FOUND)
-        
-        
+            return Response(
+                {"detail": "Franchise not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+
 class FranchiseListView(APIView):
     def get(self, request):
         franchises = Franchise.objects.all()
         serializer = FranchiseSerializers(franchises, many=True)
         return Response(serializer.data)
-    
+
+
 class FranchiseEditById(APIView):
     permission_classes = [IsAdminUser]
+
     def patch(self, request, id):
         try:
             # Obtener la franquicia de la base de datos
             franchise = Franchise.objects.get(id=id)
-            
+
             # Mostrar los datos recibidos
             print("Received data:", request.data)
 
             # Serializar los datos y validarlos (con partial=True para permitir actualizaciones parciales)
-            serializer = FranchiseSerializers(franchise, data=request.data, partial=True)
+            serializer = FranchiseSerializers(
+                franchise, data=request.data, partial=True
+            )
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 # Mostrar errores si la validación falla
                 print("Validation errors:", serializer.errors)
-                return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+                )
 
         except Franchise.DoesNotExist:
             return Response(
                 {"error": f"Franchise '{id}' not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-    
+
+
 #################################################################
 
 
@@ -598,18 +672,23 @@ class SpecialListView(APIView):
         serializer = SpecialSerializer(specials, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 class SpecialListAdminView(APIView):
     """
     Lista todos los objetos de Special para el admin
     """
+
     permission_classes = [IsAdminUser]
+
     def get(self, request):
         specials = Special.objects.all()  # Obtiene todos los objetos Special
         serializer = SpecialSerializerAdmin(specials, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
+
 class SpecialCreateView(APIView):
     permission_classes = [IsAdminUser]
+
     def post(self, request):
         serializer = SpecialSerializerAdmin(data=request.data)
         if serializer.is_valid():
@@ -618,6 +697,7 @@ class SpecialCreateView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class SpecialEditByIdView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -625,47 +705,76 @@ class SpecialEditByIdView(APIView):
         try:
             # Intenta obtener el objeto "Special" por su id
             special = Special.objects.get(id=id)
-            
+
             # Serializa los datos del objeto y valida los datos recibidos
-            serializer = SpecialSerializerAdmin(special, data=request.data, partial=True)
-            
+            serializer = SpecialSerializerAdmin(
+                special, data=request.data, partial=True
+            )
+
             if serializer.is_valid():  # Si los datos son válidos
                 serializer.save()  # Guarda los cambios en la base de datos
-                return Response(serializer.data, status=status.HTTP_200_OK)  # Devuelve los datos actualizados
-                
+                return Response(
+                    serializer.data, status=status.HTTP_200_OK
+                )  # Devuelve los datos actualizados
+
             else:  # Si los datos no son válidos
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  # Devuelve los errores
-            
-        except Special.DoesNotExist:  # Excepción específica si el objeto no se encuentra
-            return Response({"error": "Special not found."}, status=status.HTTP_404_NOT_FOUND)  # Mensaje de error si no se encuentra el objeto
+                return Response(
+                    serializer.errors, status=status.HTTP_400_BAD_REQUEST
+                )  # Devuelve los errores
+
+        except (
+            Special.DoesNotExist
+        ):  # Excepción específica si el objeto no se encuentra
+            return Response(
+                {"error": "Special not found."}, status=status.HTTP_404_NOT_FOUND
+            )  # Mensaje de error si no se encuentra el objeto
         except Exception as e:  # Captura cualquier otra excepción inesperada
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
+
 
 class SpecialDeleteByIdView(APIView):
     permission_classes = [IsAdminUser]
+
     def delete(self, request, id):
         try:
-            special = Special.objects.get(id=id)  # Obtiene el objeto "Special" por su id
+            special = Special.objects.get(
+                id=id
+            )  # Obtiene el objeto "Special" por su id
             special.delete()  # Elimina el objeto "Special" de la base de datos
-            return Response({"detail": "Special deleted successfully"}, status=status.HTTP_204_NO_CONTENT)  # Devuelve un mensaje de confirmación si la eliminación es exitosa
-            
-        except Special.DoesNotExist:  # Excepción específica si el objeto no se encuentra
-            return Response({"error": "Special not found."}, status=status.HTTP_404_NOT_FOUND)  # Mensaje de error si no se encuentra el objeto
+            return Response(
+                {"detail": "Special deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT,
+            )  # Devuelve un mensaje de confirmación si la eliminación es exitosa
+
+        except (
+            Special.DoesNotExist
+        ):  # Excepción específica si el objeto no se encuentra
+            return Response(
+                {"error": "Special not found."}, status=status.HTTP_404_NOT_FOUND
+            )  # Mensaje de error si no se encuentra el objeto
         except Exception as e:  # Captura cualquier otra excepción inesperada
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
-    
-    
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
+
+
 ##########################################################
+
 
 class TagListView(APIView):
     permission_classes = [IsAdminUser]
+
     def get(self, request):
         tags = Tag.objects.all()
         serializer = TagSerializers(tags, many=True)
         return Response(serializer.data)
-    
+
+
 class TagEditViewById(APIView):
     permission_classes = [IsAdminUser]
+
     def patch(self, request, id):
         try:
             tag = Tag.objects.get(id=id)
@@ -676,20 +785,31 @@ class TagEditViewById(APIView):
             else:
                 return Response(serializer.errors)
         except Tag.DoesNotExist:
-            return Response({"detail": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
-        
+            return Response(
+                {"detail": "Tag not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+
 class TagDeleteById(APIView):
     permission_classes = [IsAdminUser]
+
     def delete(self, request, id):
         try:
             tag = Tag.objects.get(id=id)
             tag.delete()
-            return Response({"detail": "Tag deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"detail": "Tag deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT,
+            )
         except Tag.DoesNotExist:
-            return Response({"detail": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Tag not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
 
 class TagCreateView(APIView):
     permission_classes = [IsAdminUser]
+
     def post(self, request):
         serializer = TagSerializers(data=request.data)
         if serializer.is_valid():
@@ -697,7 +817,6 @@ class TagCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
 
 
 #######################################################
@@ -711,28 +830,24 @@ class URLSDEditView(APIView):
             if not urlsd:
                 return Response(
                     {"detail": "No URLSD instance found"},
-                    status=status.HTTP_404_NOT_FOUND
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
             # Validar que solo se reciba el atributo 'url'
             if "url" not in request.data:
                 return Response(
                     {"detail": "Invalid payload, 'url' is required"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             serializer = URLSDSerializers(urlsd, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
-            
+
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
         except Exception as e:
             return Response(
-                {"detail": str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-        
-        

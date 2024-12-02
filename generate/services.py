@@ -113,6 +113,21 @@ def optimize_image(image_base64):
     return [optimized_image_base64]
 
 
+def extract_neg_prompt(main_string, neg_prompts):
+    # Encuentra todo el contenido dentro de <neg:...> y lo agrega a la lista
+    matches = re.findall(r'<neg:(.*?)>', main_string)
+    
+    # Agrega cada coincidencia a la lista de neg_prompts
+    for match in matches:
+        neg_prompts.append(match)
+    
+    # Elimina las coincidencias de la cadena principal
+    main_string = re.sub(r'<neg:.*?>', '', main_string).strip()
+    
+    return main_string
+
+
+
 
 
                 
