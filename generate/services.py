@@ -79,6 +79,7 @@ def validate_special(special_name, code_tier, prompts,neg_prompts):
                 print(prompts)
                 print("deppues del formato")
                 formated_prompts = transform_description_list(prompts)
+                print(formated_prompts)
                 
                 updated_prompts=deleteTags(tags_deleted,formated_prompts)
                 
@@ -145,22 +146,60 @@ def deleteTags(tagsToRemove, tags):
     tagsToRemoveSet = set(tagsToRemove)  # Convertimos a conjunto para búsquedas rápidas
 
     for tag in tags:
-        # Mantener etiquetas que contienen < o >
-        if "<" in tag or ">" in tag:
-            result.append(tag)
-        else:
-            # Construir un patrón exacto para buscar coincidencias
-            shouldRemove = False
-            for remove in tagsToRemoveSet:
-                # Verificar si coincide exactamente o está rodeado por espacios
-                if tag == remove or f" {remove} " in f" {tag} ":
-                    shouldRemove = True
-                    break
-            if not shouldRemove:
-                result.append(tag)
+        # Construir un patrón exacto para buscar coincidencias
+        shouldRemove = False
+        for remove in tagsToRemoveSet:
+            # Verificar si se cumple alguna de las condiciones
+            if condicion_exacta(tag, remove):
+                shouldRemove = True
+                print(f"¡Borrado! (coincidencia exacta): '{tag}'")  # Solo mostramos cuando se elimina
+                break
+            elif condicion_parentesis(tag, remove):
+                shouldRemove = True
+                print(f"¡Borrado! (coincidencia rodeada por paréntesis): '{tag}'")  # Solo mostramos cuando se elimina
+                break
+            elif condicion_subcadena(tag, remove):
+                shouldRemove = True
+                print(f"¡Borrado! (subcadena rodeada por espacios): '{tag}'")  # Solo mostramos cuando se elimina
+                break
+            elif condicion_dos_puntos(tag, remove):
+                shouldRemove = True
+                print(f"¡Borrado! (subcadena rodeada por : puntos): '{tag}'")  # Solo mostramos cuando se elimina
+                break
 
+        if not shouldRemove:
+            result.append(tag)
+
+    print("\nLista final antes de retornar:", result)  # Mostrar solo la lista final
     return result
 
+def condicion_exacta(cadena, tag):
+    # Verificar si la cadena coincide exactamente con el tag
+    return tag == cadena
+
+def condicion_parentesis(cadena, tag):
+    # Verificar si el tag está rodeado por paréntesis y no tiene espacios adicionales antes o después
+    return cadena == f"({tag})" or (cadena.startswith('(') and cadena.endswith(')') and cadena[1:-1] == tag)
+
+def condicion_subcadena(cadena, tag):
+    # Verificar si la subcadena existe en la cadena y está rodeada por espacios o es el inicio/final de la cadena
+    if tag in cadena:
+        start_index = cadena.find(tag)
+        end_index = start_index + len(tag)
+
+        # Si está al principio o al final de la cadena
+        if start_index == 0 or end_index == len(cadena):
+            return True
+
+        # Verificar que haya un espacio antes y después del tag
+        if (cadena[start_index - 1] == ' ' or cadena[start_index - 1] == '(') and \
+           (cadena[end_index] == ' ' or cadena[end_index] == ')'):
+            return True
+        
+    return False
+def condicion_dos_puntos(cadena, tag):
+    # Verificar si el tag está precedido por un espacio y seguido de ":"
+    return f" {tag}:" in cadena
 
 
 
