@@ -169,6 +169,7 @@ class ConcatenatePromptsView(APIView):
                         prompts.append(image_type_instance.prompt)
 
                 specials_name = data.get("special")
+                new_prompts = prompts
                 if specials_name:
                     check_tier_lvl = check_tier_level(code_tier) + 1
 
@@ -176,7 +177,7 @@ class ConcatenatePromptsView(APIView):
 
                     # Limitar la cantidad de elementos que se recorrerán
                     max_elements = min(len(specials_name), check_tier_lvl * 2)
-                    new_prompts = prompts
+                    
                     for special_name in specials_name[
                         :max_elements
                     ]:  # Restringir la iteración
