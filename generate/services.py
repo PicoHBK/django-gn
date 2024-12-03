@@ -66,15 +66,7 @@ def validate_special(special_name, code_tier, prompts,neg_prompts):
                     prompts.append(f"({random_tag}:1.2)")  # Agregar el tag aleatorio
 
                 # Depurar los prompts eliminando todas las palabras o cadenas que coincidan con tags_deleted
-                updated_prompts = []
-                """ for prompt in prompts:
-                    for tag in tags_deleted:
-                        # Eliminar las palabras o frases completas que coincidan con tags_deleted
-                        prompt = re.sub(r'\b' + re.escape(tag) + r'\b', '', prompt)
-
-                    # Filtrar espacios extra que puedan quedar
-                    updated_prompts.append(' '.join(prompt.split())) """
-                    
+                updated_prompts = []             
                 print("promt antes del formateo ")
                 print(prompts)
                 print("deppues del formato")
@@ -139,6 +131,8 @@ def extract_neg_prompt(main_string, neg_prompts):
 
 
 def deleteTags(tagsToRemove, tags):
+    print("para eliminar")
+    print( tagsToRemove)
     if not tagsToRemove:  # Si tagsToRemove es nulo o vacío
         return tags
 

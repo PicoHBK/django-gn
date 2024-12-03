@@ -176,12 +176,12 @@ class ConcatenatePromptsView(APIView):
 
                     # Limitar la cantidad de elementos que se recorrerán
                     max_elements = min(len(specials_name), check_tier_lvl * 2)
-                    new_prompts = []
+                    new_prompts = prompts
                     for special_name in specials_name[
                         :max_elements
                     ]:  # Restringir la iteración
                         check_special = validate_special(
-                            special_name, code_tier, prompts, neg_prompts
+                            special_name, code_tier, new_prompts, neg_prompts
                         )
                         if check_special:
                             new_prompts = check_special
@@ -192,17 +192,6 @@ class ConcatenatePromptsView(APIView):
                                 },
                                 status=status.HTTP_403_FORBIDDEN,
                             )
-
-                """ check_special = validate_special(special_name, code_tier, prompts)
-                if check_special:
-                    print(str(check_special))
-                else:
-                    return Response(
-                        {
-                            "error": "The code does not have the required tier to access this Special."
-                        },
-                        status=status.HTTP_403_FORBIDDEN,
-                    ) """
 
                 # Concatenamos todos los prompts separados por comas
                 concatenated_prompts = ", ".join(new_prompts)
@@ -226,7 +215,6 @@ class ConcatenatePromptsView(APIView):
                     print("Mandando..........")
                     
                     print(modified_data["prompt"])
-                    print(modified_data["negative_prompt"])
 
                     # Realizamos una solicitud a otra URL con el JSON modificado como payload
                     url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
