@@ -176,6 +176,7 @@ class ConcatenatePromptsView(APIView):
 
                     # Limitar la cantidad de elementos que se recorrerán
                     max_elements = min(len(specials_name), check_tier_lvl * 2)
+                    new_prompts = []
                     for special_name in specials_name[
                         :max_elements
                     ]:  # Restringir la iteración
@@ -183,7 +184,7 @@ class ConcatenatePromptsView(APIView):
                             special_name, code_tier, prompts, neg_prompts
                         )
                         if check_special:
-                            print("____")
+                            new_prompts = check_special
                         else:
                             return Response(
                                 {
@@ -204,7 +205,7 @@ class ConcatenatePromptsView(APIView):
                     ) """
 
                 # Concatenamos todos los prompts separados por comas
-                concatenated_prompts = ", ".join(prompts)
+                concatenated_prompts = ", ".join(new_prompts)
                 concatenated_neg_prompts = ", ".join(neg_prompts)
 
 

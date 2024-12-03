@@ -67,14 +67,22 @@ def validate_special(special_name, code_tier, prompts,neg_prompts):
 
                 # Depurar los prompts eliminando todas las palabras o cadenas que coincidan con tags_deleted
                 updated_prompts = []
-                for prompt in prompts:
+                """ for prompt in prompts:
                     for tag in tags_deleted:
                         # Eliminar las palabras o frases completas que coincidan con tags_deleted
                         prompt = re.sub(r'\b' + re.escape(tag) + r'\b', '', prompt)
 
                     # Filtrar espacios extra que puedan quedar
-                    updated_prompts.append(' '.join(prompt.split()))
-
+                    updated_prompts.append(' '.join(prompt.split())) """
+                    
+                print("promt antes del formateo ")
+                print(prompts)
+                print("deppues del formato")
+                formated_prompts = transform_description_list(prompts)
+                
+                updated_prompts=deleteTags(tags_deleted,formated_prompts)
+                
+    
                 return updated_prompts
     else:
         print("No existe el special name")
@@ -129,6 +137,47 @@ def extract_neg_prompt(main_string, neg_prompts):
 
 
 
+def deleteTags(tagsToRemove, tags):
+    if not tagsToRemove:  # Si tagsToRemove es nulo o vacío
+        return tags
+
+    result = []
+    tagsToRemoveSet = set(tagsToRemove)  # Convertimos a conjunto para búsquedas rápidas
+
+    for tag in tags:
+        # Mantener etiquetas que contienen < o >
+        if "<" in tag or ">" in tag:
+            result.append(tag)
+        else:
+            # Construir un patrón exacto para buscar coincidencias
+            shouldRemove = False
+            for remove in tagsToRemoveSet:
+                # Verificar si coincide exactamente o está rodeado por espacios
+                if tag == remove or f" {remove} " in f" {tag} ":
+                    shouldRemove = True
+                    break
+            if not shouldRemove:
+                result.append(tag)
+
+    return result
+
+
+
+
+
+def transform_description_list(input_list):
+    # Crear una lista para almacenar los nuevos elementos
+    formatted_list = []
+    
+    # Iterar sobre cada elemento en la lista original
+    for item in input_list:
+        # Dividir el elemento por comas si las tiene y quitar espacios innecesarios
+        split_items = [sub_item.strip() for sub_item in item.split(',')]
+        # Agregar los elementos divididos a la lista final
+        formatted_list.extend(split_items)
+    
+    # Retornar la lista formateada
+    return formatted_list
 
 
                 
