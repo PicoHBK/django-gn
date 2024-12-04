@@ -143,7 +143,7 @@
     "do_not_save_grid": false,
     "do_not_save_samples": false,
     "enable_hr": true,
-    "height": 888,
+    "height": 700,
     "hr_negative_prompt": "",
     "hr_prompt": "(standing:1.4), solo, 1girl, looking at viewer, 2D, anime, official style, anime coloring, anime screencap,<lora:tohru-maidragon:0.8>, tohru, maid, maid headdress, elbow gloves,(long pleated skirt,full-length skirt:1.3)brown shoes, (smile512:1.2), (fullbody:1.4)",
     "hr_resize_x": 0,
@@ -176,5 +176,5 @@
     "subseed": -1,
     "subseed_strength": 0,
     "tiling": false,
-    "width": 448
+    "width": 548
 }
