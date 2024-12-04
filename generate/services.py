@@ -212,6 +212,12 @@ def transform_description_list(input_list):
     # Retornar la lista formateada
     return formatted_list
 
+def format_commas(text):
+    # Eliminar espacios y saltos de línea antes y después de las comas
+    formatted_text = re.sub(r'\s*,\s*', ',', text)
+    # Eliminar saltos de línea adicionales
+    formatted_text = re.sub(r'\n', '', formatted_text)
+    return formatted_text
 
                 
                 

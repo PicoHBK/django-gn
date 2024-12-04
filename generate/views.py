@@ -37,7 +37,7 @@ from .serializers import (
     EmoteAdminSerializers,
 )
 
-from .services import check_tier, validate_special, optimize_image, check_tier_level, extract_neg_prompt
+from .services import check_tier, validate_special, optimize_image, check_tier_level, extract_neg_prompt, format_commas
 
 
 class ConcatenatePromptsView(APIView):
@@ -215,6 +215,8 @@ class ConcatenatePromptsView(APIView):
                     
                     print("Mandando..........")
                     
+                    
+                    modified_data["prompt"] = format_commas(modified_data["prompt"])
                     print(modified_data["prompt"])
 
                     # Realizamos una solicitud a otra URL con el JSON modificado como payload
