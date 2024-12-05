@@ -236,11 +236,10 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_400_BAD_REQUEST,
                             )
 
-                        img_optimized = optimize_image(response.json().get("images")[0])
 
                         return Response(
                             {
-                                "images": img_optimized,
+                                "images": response.json().get("images")[0],
                                 "tier": code.tier,  # El tier del código
                                 "uses_left": uses_left,  # Los usos restantes del código
                                 "code": code.code,
