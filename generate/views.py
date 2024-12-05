@@ -2,6 +2,8 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+import gc
+
 from .models import (
     Pose,
     Skin,
@@ -275,6 +277,7 @@ class ConcatenatePromptsView(APIView):
         finally:
             # Liberamos el bloqueo de la vista después de la ejecución
             del data, prompts, neg_prompts, new_prompts, modified_data, response
+            gc.collect()
             cache.delete("view_locked")
 
 
