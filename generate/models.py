@@ -84,6 +84,8 @@ class ImageType(models.Model):
     name = models.CharField(max_length=255)
     prompt = models.TextField()
     url_img = models.URLField(blank=True, null=True)
+    width = models.IntegerField(default=0)
+    height = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name

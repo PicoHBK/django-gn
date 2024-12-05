@@ -161,6 +161,7 @@ class ConcatenatePromptsView(APIView):
 
                 # Buscamos en el modelo 'ImageType' usando el valor de 'image' del payload
                 image_type = data.get("image")
+                image_type_instance  = None
                 if image_type:
                     image_type_instance = ImageType.objects.filter(
                         name=image_type
@@ -210,7 +211,7 @@ class ConcatenatePromptsView(APIView):
                         concatenated_prompts,
                         concatenated_prompts,
                         concatenated_neg_prompts,
-                        image_type,
+                        image_type_instance,
                     )
                     
                     print("Mandando..........")
