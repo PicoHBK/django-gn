@@ -274,6 +274,7 @@ class ConcatenatePromptsView(APIView):
 
         finally:
             # Liberamos el bloqueo de la vista después de la ejecución
+            del data, prompts, neg_prompts, new_prompts, modified_data, response
             cache.delete("view_locked")
 
 
