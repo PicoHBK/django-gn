@@ -102,5 +102,6 @@ urlpatterns = [
     path("special/<int:id>/edit", SpecialEditByIdView.as_view(), name="special-edit-admin"),
     path("special/new", SpecialCreateView.as_view(), name="special-create-admin"),
     path("special/<int:id>/delete", SpecialDeleteByIdView.as_view(), name="special-delete-admin"),
+    #new
     
 ]
