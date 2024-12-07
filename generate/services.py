@@ -87,8 +87,8 @@ def validate_special(special_name, code_tier, prompts,neg_prompts):
 
 def optimize_image(image_base64):
     """
-    Convierte una imagen en base64 a formato JPEG con optimización de calidad y devuelve una lista.
-    Muestra el tamaño de la imagen antes y después de la optimización.
+    Convierte una imagen en base64 a formato JPEG con optimización de calidad y reduce su resolución a la mitad.
+    Devuelve una lista con la imagen optimizada en Base64.
     """
     # Decodificar la imagen Base64
     image_data = base64.b64decode(image_base64)
@@ -99,9 +99,13 @@ def optimize_image(image_base64):
     # Abrir la imagen usando Pillow
     img = Image.open(BytesIO(image_data))
     
-    # Convertir la imagen a formato JPEG (ajustar calidad según lo necesites)
+    # Reducir la resolución de la imagen a la mitad
+    new_size = (img.width // 2, img.height // 2)
+    img_resized = img.resize(new_size, Image.ANTIALIAS)
+    
+    # Convertir la imagen a formato JPEG con calidad optimizada
     output = BytesIO()
-    img.convert("RGB").save(output, format="JPEG", quality=80)  # Calidad 85 para optimizar el tamaño
+    img_resized.convert("RGB").save(output, format="JPEG", quality=80)  # Ajustar calidad según necesidad
     
     # Codificar la imagen optimizada en Base64
     output.seek(0)

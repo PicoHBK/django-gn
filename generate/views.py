@@ -240,7 +240,7 @@ class ConcatenatePromptsView(APIView):
 
                         return Response(
                             {
-                                "images": response.json().get("images"),
+                                "images": optimize_image(response.json().get("images")[0]),
                                 "tier": code.tier,  # El tier del código
                                 "uses_left": uses_left,  # Los usos restantes del código
                                 "code": code.code,
