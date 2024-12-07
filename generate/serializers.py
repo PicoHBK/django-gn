@@ -20,7 +20,7 @@ class SkinSerializersAdmin(serializers.ModelSerializer):
 class PoseSerializers(serializers.ModelSerializer):
     class Meta:
         model = Pose
-        fields = ["name","tier"]
+        fields = ["name","tier","img_type"]
         
 class PoseAdminSerializers(serializers.ModelSerializer):
     class Meta:
@@ -39,7 +39,7 @@ class EmoteAdminSerializers(serializers.ModelSerializer):
 class ImageTypeSerializers(serializers.ModelSerializer):
     class Meta:
         model = ImageType
-        fields = ["name","url_img"]
+        fields = ["name","url_img","id"]
 class FranchiseSerializers(serializers.ModelSerializer):
     class Meta:
         model = Franchise
