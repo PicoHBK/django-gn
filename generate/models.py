@@ -146,3 +146,25 @@ class Special(models.Model):
 
     def __str__(self):
         return f"{self.name}- {self.tier}"
+
+class SpecialPreset(models.Model):
+    TIER_CHOICES = [
+        ("tier1", "Tier 1"),
+        ("tier2", "Tier 2"),
+        ("tier3", "Tier 3"),
+        ("tier4", "Tier 4"),
+        ("tier5", "Tier 5"),
+    ]
+    name = models.CharField(max_length=255)
+    tier = models.CharField(
+        max_length=5,
+        choices=TIER_CHOICES,
+        default="tier5",  # El valor predeterminado es 'tier1'
+    )
+    specials = models.ManyToManyField(
+        Special, related_name="presets", blank=True
+    )  # Relación muchos a muchos con Special
+    
+    def __str__(self):
+        return self.name
+    

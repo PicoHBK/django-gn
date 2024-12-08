@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Franchise, Character, Pose, Skin, Emote, ImageType, URLSD, Tag, Special
+from .models import Franchise, Character, Pose, Skin, Emote, ImageType, URLSD, Tag, Special, SpecialPreset
 
 # Registro de la franquicia en el admin
 class FranchiseAdmin(admin.ModelAdmin):
@@ -53,4 +53,5 @@ admin.site.register(ImageType, ImageTypeAdmin)
 admin.site.register(URLSD)
 admin.site.register(Tag)
 admin.site.register(Special)
+admin.site.register(SpecialPreset)
 

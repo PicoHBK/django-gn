@@ -37,6 +37,8 @@ from .views import (
     EmoteCreateView,
     EmoteDeleteByIdView,
     EmoteEditByIdView,
+    SpecialPresetListView,
+    SpecialPresetCreateView
 )
 
 urlpatterns = [
@@ -102,6 +104,10 @@ urlpatterns = [
     path("special/<int:id>/edit", SpecialEditByIdView.as_view(), name="special-edit-admin"),
     path("special/new", SpecialCreateView.as_view(), name="special-create-admin"),
     path("special/<int:id>/delete", SpecialDeleteByIdView.as_view(), name="special-delete-admin"),
+    
+    
+    path("special-preset/list", SpecialPresetListView.as_view(), name="special-preset-list"),
+    path("special-preset/new", SpecialPresetCreateView.as_view(), name="special-preset-new"),
     #new
     
 ]

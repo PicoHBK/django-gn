@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Character, Skin, Pose,Emote, ImageType, Franchise,Tag, Special,URLSD
+from .models import Character, Skin, Pose,Emote, ImageType, Franchise,Tag, Special,URLSD,SpecialPreset
 
 
 
@@ -63,6 +63,12 @@ class SpecialSerializerAdmin(serializers.ModelSerializer):  # Solo lectura de ta
     class Meta:
         model = Special
         fields = "__all__"
+        
+class SpecialPresetSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = SpecialPreset
+        fields = "__all__"
+        
         
 ######################################3
         

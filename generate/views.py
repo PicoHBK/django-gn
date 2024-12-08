@@ -13,6 +13,7 @@ from .models import (
     Franchise,
     Special,
     Tag,
+    SpecialPreset
 )
 from .utils import modificar_json
 from user_auth.models import Code
@@ -36,6 +37,7 @@ from .serializers import (
     URLSDSerializers,
     PoseAdminSerializers,
     EmoteAdminSerializers,
+    SpecialPresetSerializers
 )
 
 from .services import check_tier, validate_special, optimize_image, check_tier_level, extract_neg_prompt, format_commas
@@ -186,12 +188,12 @@ class ConcatenatePromptsView(APIView):
                         check_special = validate_special(
                             special_name, code_tier, new_prompts, neg_prompts
                         )
-                        if check_special:
+                        if check_special and check_special !=" ":
                             new_prompts = check_special
                         else:
                             return Response(
                                 {
-                                    "error": "The code does not have the required tier to access this Special."
+                                    "error": "The code does not have the required tier to access this special or does not exist."
                                 },
                                 status=status.HTTP_403_FORBIDDEN,
                             )
@@ -274,8 +276,6 @@ class ConcatenatePromptsView(APIView):
             )
 
         finally:
-            del data, prompts, neg_prompts, new_prompts, modified_data, response
-            gc.collect()
             cache.delete("view_locked")
 
 
@@ -753,6 +753,55 @@ class SpecialDeleteByIdView(APIView):
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )  # Mensaje de error para excepciones no controladas # Devuelve un mensaje de error si el objeto no se encuentra
+
+#############
+class SpecialPresetListView(APIView):    
+    def get(self, request):
+        presets = SpecialPreset.objects.all()
+        serializer = SpecialPresetSerializers(presets, many=True)
+        return Response(serializer.data)
+
+class SpecialPresetCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        # Recuperamos los nombres de los specials desde el payload
+        specials_names = request.data.get('specials', [])
+        
+        if specials_names:
+            # Filtramos los specials en la base de datos usando los nombres recibidos en el payload
+            specials = Special.objects.filter(name__in=specials_names)
+            
+            # Verificamos que todos los specials estén presentes en la base de datos
+            if specials.count() != len(specials_names):
+                return Response({"detail": "Some specials not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Determinamos el tier más alto basado en los specials relacionados
+            tiers = [special.tier for special in specials]
+            tiers.sort()  # Ordenar los tiers, por defecto es lexicográfico
+            max_tier = tiers[-1]  # Obtener el tier más alto
+
+            # Creamos el diccionario con los datos para el SpecialPreset
+            preset_data = {
+                "name": request.data.get("name"),
+                "tier": max_tier,  # Usamos el tier más alto aquí
+                "specials": specials.values_list('id', flat=True)  # Solo los IDs de los specials
+            }
+
+            # Usamos el serializer para crear el SpecialPreset con los datos generados
+            serializer = SpecialPresetSerializers(data=preset_data)
+            
+            if serializer.is_valid():
+                # Guardamos el objeto SpecialPreset
+                serializer.save()
+
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({"detail": "No specials provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+    
 
 
 ##########################################################
