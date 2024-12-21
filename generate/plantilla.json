@@ -131,7 +131,20 @@
                 0,
                 0
             ]
-        }
+        },
+        "Tiled VAE": {
+    "args": [
+      true,
+      4096,
+      512,
+      true,
+      true,
+      true,
+      false
+    ]
+  }
+
+        
     },
     "batch_size": 1,
     "cfg_scale": 7,
