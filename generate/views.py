@@ -180,7 +180,7 @@ class ConcatenatePromptsView(APIView):
                     print(f"lvl code {check_tier_lvl}")
 
                     # Limitar la cantidad de elementos que se recorrerán
-                    max_elements = min(len(specials_name), check_tier_lvl * 2)
+                    max_elements = min(len(specials_name), check_tier_lvl * 4)
                     
                     for special_name in specials_name[
                         :max_elements
