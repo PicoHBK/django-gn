@@ -38,7 +38,8 @@ from .views import (
     EmoteDeleteByIdView,
     EmoteEditByIdView,
     SpecialPresetListView,
-    SpecialPresetCreateView
+    SpecialPresetCreateView,
+    ControlPoseListView
 )
 
 urlpatterns = [
@@ -109,5 +110,8 @@ urlpatterns = [
     path("special-preset/list", SpecialPresetListView.as_view(), name="special-preset-list"),
     path("special-preset/new", SpecialPresetCreateView.as_view(), name="special-preset-new"),
     #new
+    
+    path("controlpose/list", ControlPoseListView.as_view(), name="control-pose-list"),
+    
     
 ]

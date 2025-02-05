@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Character, Skin, Pose,Emote, ImageType, Franchise,Tag, Special,URLSD,SpecialPreset
+from .models import Character, ControlPose, Skin, Pose,Emote, ImageType, Franchise,Tag, Special,URLSD,SpecialPreset
 
 
 
@@ -80,4 +80,10 @@ class TagSerializers(serializers.ModelSerializer):
 class URLSDSerializers(serializers.ModelSerializer):
     class Meta:
         model = URLSD
+        fields = "__all__"
+
+class ControlPoseSerializers(serializers.ModelSerializer):
+    
+    class Meta:
+        model = ControlPose
         fields = "__all__"

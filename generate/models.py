@@ -168,3 +168,13 @@ class SpecialPreset(models.Model):
     def __str__(self):
         return self.name
     
+
+
+class ControlPose(models.Model):
+    name = models.CharField(max_length=255)  # El nombre de la pose
+    url_img = models.URLField()  # La URL de la imagen
+
+    def __str__(self):
+        return self.name
+
+    

@@ -13,7 +13,8 @@ from .models import (
     Franchise,
     Special,
     Tag,
-    SpecialPreset
+    SpecialPreset,
+    ControlPose
 )
 from .utils import modificar_json
 from user_auth.models import Code
@@ -21,6 +22,8 @@ from django.db import transaction
 from django.core.cache import cache
 
 from rest_framework.permissions import IsAdminUser
+
+from .utils_generate.get_base64_from_url import get_base64_from_url
 
 
 from .serializers import (
@@ -37,7 +40,8 @@ from .serializers import (
     URLSDSerializers,
     PoseAdminSerializers,
     EmoteAdminSerializers,
-    SpecialPresetSerializers
+    SpecialPresetSerializers,
+    ControlPoseSerializers,
 )
 
 from .services import check_tier, validate_special, optimize_image, check_tier_level, extract_neg_prompt, format_commas
@@ -88,8 +92,13 @@ class ConcatenatePromptsView(APIView):
 
                 # Buscamos en el modelo 'Pose' usando el valor de 'pose' del payload
                 pose_name = data.get("pose")
-
+                controlnet = data.get("poseControl")
+                img_base_64 = None 
+                
                 if pose_name:
+                    controlnet = None
+
+                if pose_name and not controlnet :
                     pose = Pose.objects.filter(name=pose_name).first()
                     if pose:
                         if not check_tier(pose.tier, code_tier):
@@ -103,6 +112,29 @@ class ConcatenatePromptsView(APIView):
                         if pose.prompt:  # Aseguramos que pose.prompt no sea None o vacío
                             cleaned_prompt = extract_neg_prompt(pose.prompt, neg_prompts)
                             prompts.append(cleaned_prompt)
+                
+                
+                 # Lo defines arriba para poder usarlo más abajo
+
+                if controlnet:
+                    # Obtener el primer objeto ControlPose con el id proporcionado o None si no se encuentra
+                    image = ControlPose.objects.filter(id=controlnet).first()
+                    if image:
+                        print(code_tier)
+                        if not check_tier("tier5", code_tier):
+                            return Response(
+                                {
+                                    "error": "The code does not have the required tier to access this Controlpose."
+                                },
+                                status=status.HTTP_403_FORBIDDEN,
+                            )
+
+                        # Si se llega aquí, significa que el código tiene el nivel adecuado
+                        if image.url_img:
+                            img_base_64 = get_base64_from_url(image.url_img)
+                                
+
+
 
 
                 # Buscamos el 'Character' usando el valor de 'character' del payload
@@ -215,6 +247,7 @@ class ConcatenatePromptsView(APIView):
                         concatenated_prompts,
                         concatenated_neg_prompts,
                         image_type_instance,
+                        img_base_64
                     )
                     
                     print("Mandando..........")
@@ -804,6 +837,15 @@ class SpecialPresetCreateView(APIView):
     
 
 
+##########################################################
+
+class ControlPoseListView(APIView):
+    
+    def get(self, request):
+        controlposes = ControlPose.objects.all()
+        serializer = ControlPoseSerializers(controlposes, many=True)
+        return Response(serializer.data)
+        
 ##########################################################
 
 
