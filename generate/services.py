@@ -67,11 +67,7 @@ def validate_special(special_name, code_tier, prompts,neg_prompts):
 
                 # Depurar los prompts eliminando todas las palabras o cadenas que coincidan con tags_deleted
                 updated_prompts = []             
-                print("promt antes del formateo ")
-                print(prompts)
-                print("deppues del formato")
                 formated_prompts = transform_description_list(prompts)
-                print(formated_prompts)
                 
                 updated_prompts=deleteTags(tags_deleted,formated_prompts)
                 
@@ -135,8 +131,6 @@ def extract_neg_prompt(main_string, neg_prompts):
 
 
 def deleteTags(tagsToRemove, tags):
-    print("para eliminar")
-    print( tagsToRemove)
     if not tagsToRemove:  # Si tagsToRemove es nulo o vacío
         return tags
 
@@ -168,7 +162,6 @@ def deleteTags(tagsToRemove, tags):
         if not shouldRemove:
             result.append(tag)
 
-    print("\nLista final antes de retornar:", result)  # Mostrar solo la lista final
     return result
 
 def condicion_exacta(cadena, tag):

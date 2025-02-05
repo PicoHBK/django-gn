@@ -250,11 +250,9 @@ class ConcatenatePromptsView(APIView):
                         img_base_64
                     )
                     
-                    print("Mandando..........")
                     
                     
                     modified_data["prompt"] = format_commas(modified_data["prompt"])
-                    print(modified_data["prompt"])
 
                     # Realizamos una solicitud a otra URL con el JSON modificado como payload
                     url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
