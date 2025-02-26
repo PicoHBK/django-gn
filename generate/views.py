@@ -24,6 +24,7 @@ from django.core.cache import cache
 from rest_framework.permissions import IsAdminUser
 
 from .utils_generate.get_base64_from_url import get_base64_from_url
+from .utils_generate.compress_base65 import compress_images_base64
 
 
 from .serializers import (
@@ -273,7 +274,7 @@ class ConcatenatePromptsView(APIView):
 
                         return Response(
                             {
-                                "images": response.json().get("images"),
+                                "images": compress_images_base64(response.json().get("images")),
                                 "tier": code.tier,  # El tier del código
                                 "uses_left": uses_left,  # Los usos restantes del código
                                 "code": code.code,
