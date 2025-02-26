@@ -173,6 +173,14 @@ class SpecialPreset(models.Model):
 class ControlPose(models.Model):
     name = models.CharField(max_length=255)  # El nombre de la pose
     url_img = models.URLField()  # La URL de la imagen
+    
+    img_type = models.ForeignKey(
+        ImageType,  # Ahora sin comillas porque ya está definido arriba
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="posesControl",
+    )
 
     def __str__(self):
         return self.name
