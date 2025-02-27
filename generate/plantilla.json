@@ -112,7 +112,7 @@
           "batch_keyframe_idx": null,
           "batch_mask_dir": null,
           "batch_modifiers": [],
-          "control_mode": "My prompt is more important",
+          "control_mode": "Balanced",
           "effective_region_mask": null,
           "enabled": true,
           "guidance_end": 1,
