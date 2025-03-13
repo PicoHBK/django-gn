@@ -298,7 +298,7 @@
     "comments": {
         "Lora not found: Toga_Himiko": 1
     },
-    "denoising_strength": 0.25,
+    "denoising_strength": 0,
     "disable_extra_networks": false,
     "do_not_save_grid": false,
     "do_not_save_samples": false,
