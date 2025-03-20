@@ -704,13 +704,19 @@ class SpecialListAdminView(APIView):
     """
     Lista todos los objetos de Special para el admin
     """
-
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        specials = Special.objects.all()  # Obtiene todos los objetos Special
+        # Optimización con select_related y prefetch_related
+        specials = Special.objects.all().prefetch_related(
+            'tags_required',  # Relación ManyToMany con tags_required
+            'tags_deleted'    # Relación ManyToMany con tags_deleted
+        )
+
+        # Serialización de los datos
         serializer = SpecialSerializerAdmin(specials, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 
 class SpecialCreateView(APIView):
