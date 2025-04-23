@@ -26,6 +26,7 @@ from rest_framework.permissions import IsAdminUser
 from .utils_generate.get_base64_from_url import get_base64_from_url
 from .utils_generate.compress_base65 import compress_images_base64
 
+import json
 
 from .serializers import (
     CharacterSerializers,
@@ -257,10 +258,16 @@ class ConcatenatePromptsView(APIView):
 
                     # Realizamos una solicitud a otra URL con el JSON modificado como payload
                     url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
-                    response = requests.post(url, json=modified_data)
+                    response = requests.post(url, json=modified_data,stream=True)
 
                     # Verificamos si la solicitud fue exitosa
                     if response.status_code == 200:
+                        chunks= []
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:
+                                chunks.append(chunk)
+                                
+                        response_data = json.loads(b''.join(chunks).decode('utf-8'))
                         # Si la respuesta es exitosa, calculamos los usos restantes y devolvemos la respuesta
                         uses_left = code.max_uses - code.uses
 
@@ -274,7 +281,7 @@ class ConcatenatePromptsView(APIView):
 
                         return Response(
                             {
-                                "images": compress_images_base64(response.json().get("images")),
+                                "images": compress_images_base64(response_data.get("images")),
                                 "tier": code.tier,  # El tier del código
                                 "uses_left": uses_left,  # Los usos restantes del código
                                 "code": code.code,
