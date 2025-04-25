@@ -308,7 +308,7 @@
     "hr_prompt": "(standing:1.4), solo, 1girl, looking at viewer, 2D, anime, official style, anime coloring, anime screencap,<lora:tohru-maidragon:0.8>, tohru, maid, maid headdress, elbow gloves,(long pleated skirt,full-length skirt:1.3)brown shoes, (smile512:1.2), (fullbody:1.4)",
     "hr_resize_x": 0,
     "hr_resize_y": 0,
-    "hr_scale": 1.3,
+    "hr_scale": 1.1,
     "hr_scheduler": "Automatic",
     "hr_second_pass_steps": 15,
     "hr_upscaler": "R-ESRGAN 4x+ Anime6B",
