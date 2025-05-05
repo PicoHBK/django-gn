@@ -208,6 +208,7 @@ class ConcatenatePromptsView(APIView):
 
                 specials_name = data.get("special")
                 new_prompts = prompts
+                #print(f"new_prompts {new_prompts}")
                 if specials_name:
                     check_tier_lvl = check_tier_level(code_tier) + 1
 
@@ -235,6 +236,8 @@ class ConcatenatePromptsView(APIView):
                 # Concatenamos todos los prompts separados por comas
                 concatenated_prompts = ", ".join(new_prompts)
                 concatenated_neg_prompts = ", ".join(neg_prompts)
+                
+                #print(f"concatenated_prompts {concatenated_prompts}")
 
 
                 # Solo si hay recursos válidos, realizamos la solicitud a la URL externa

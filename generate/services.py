@@ -131,32 +131,33 @@ def extract_neg_prompt(main_string, neg_prompts):
 
 
 def deleteTags(tagsToRemove, tags):
-    if not tagsToRemove:  # Si tagsToRemove es nulo o vacío
+    if not tagsToRemove:
         return tags
 
     result = []
-    tagsToRemoveSet = set(tagsToRemove)  # Convertimos a conjunto para búsquedas rápidas
+    tagsToRemoveSet = set(tagsToRemove)
 
     for tag in tags:
-        # Construir un patrón exacto para buscar coincidencias
         shouldRemove = False
         for remove in tagsToRemoveSet:
-            # Verificar si se cumple alguna de las condiciones
-            if condicion_exacta(tag, remove):
+            # Caso 1: Coincidencia exacta (ej: "leggins" == "leggins")
+            if tag.strip() == remove.strip():
                 shouldRemove = True
-                print(f"¡Borrado! (coincidencia exacta): '{tag}'")  # Solo mostramos cuando se elimina
+                print(f"¡Borrado! (coincidencia exacta): '{tag}'")
                 break
-            elif condicion_parentesis(tag, remove):
+            
+            # Caso 2: Tag dentro de paréntesis, con o sin peso (ej: "(leggins:1.6)" o "(leggins)")
+            if tag.startswith("(") and tag.endswith(")"):
+                tag_content = tag[1:-1].split(":")[0].strip()  # Extrae "leggins" de "(leggins:1.6)"
+                if tag_content == remove:
+                    shouldRemove = True
+                    print(f"¡Borrado! (coincidencia en paréntesis): '{tag}'")
+                    break
+            
+            # Caso 3: Tag como subcadena (ej: "black leggins" contiene "leggins")
+            if remove in tag.split():  # Busca palabras individuales, no subcadenas parciales
                 shouldRemove = True
-                print(f"¡Borrado! (coincidencia rodeada por paréntesis): '{tag}'")  # Solo mostramos cuando se elimina
-                break
-            elif condicion_subcadena(tag, remove):
-                shouldRemove = True
-                print(f"¡Borrado! (subcadena rodeada por espacios): '{tag}'")  # Solo mostramos cuando se elimina
-                break
-            elif condicion_dos_puntos(tag, remove):
-                shouldRemove = True
-                print(f"¡Borrado! (subcadena rodeada por : puntos): '{tag}'")  # Solo mostramos cuando se elimina
+                print(f"¡Borrado! (subcadena): '{tag}'")
                 break
 
         if not shouldRemove:
