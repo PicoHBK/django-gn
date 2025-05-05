@@ -140,24 +140,26 @@ def deleteTags(tagsToRemove, tags):
     for tag in tags:
         shouldRemove = False
         for remove in tagsToRemoveSet:
-            # Caso 1: Coincidencia exacta (ej: "leggins" == "leggins")
+            # Caso 1: Coincidencia exacta
             if tag.strip() == remove.strip():
                 shouldRemove = True
                 print(f"¡Borrado! (coincidencia exacta): '{tag}'")
                 break
             
-            # Caso 2: Tag dentro de paréntesis, con o sin peso (ej: "(leggins:1.6)" o "(leggins)")
+            # Caso 2: Tag dentro de paréntesis
             if tag.startswith("(") and tag.endswith(")"):
-                tag_content = tag[1:-1].split(":")[0].strip()  # Extrae "leggins" de "(leggins:1.6)"
-                if tag_content == remove:
+                tag_content = tag[1:-1].split(":")[0].strip()
+                # Comprobar si el tag a eliminar está como palabra completa en el contenido
+                if remove in tag_content.split():
                     shouldRemove = True
-                    print(f"¡Borrado! (coincidencia en paréntesis): '{tag}'")
+                    print(f"¡Borrado! (palabra en paréntesis): '{tag}'")
                     break
             
-            # Caso 3: Tag como subcadena (ej: "black leggins" contiene "leggins")
-            if remove in tag.split():  # Busca palabras individuales, no subcadenas parciales
+            # Caso 3: Tag como palabra completa en el string
+            words_in_tag = tag.lower().replace("_", " ").split()
+            if remove.lower() in words_in_tag:
                 shouldRemove = True
-                print(f"¡Borrado! (subcadena): '{tag}'")
+                print(f"¡Borrado! (palabra en tag): '{tag}'")
                 break
 
         if not shouldRemove:
