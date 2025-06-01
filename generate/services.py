@@ -101,7 +101,7 @@ def optimize_image(image_base64):
     
     # Convertir la imagen a formato JPEG con calidad optimizada
     output = BytesIO()
-    img_resized.convert("RGB").save(output, format="JPEG", quality=80)  # Ajustar calidad según necesidad
+    img_resized.convert("RGB").save(output, format="JPEG", quality=70)  # Ajustar calidad según necesidad
     
     # Codificar la imagen optimizada en Base64
     output.seek(0)
