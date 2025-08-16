@@ -21,6 +21,7 @@ SECRET_KEY = env.str("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG")
+#DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -133,6 +134,10 @@ WSGI_APPLICATION = 'server.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+
+# DATABASES = {
+#         'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+#     }
 
 # Si DEBUG es True, usa SQLite
 if DEBUG:
