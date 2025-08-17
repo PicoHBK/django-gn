@@ -20,7 +20,7 @@ def compress_images_base64(image_list: list) -> list:
         buf = BytesIO()
 
         # Guardar la imagen como WebP con compresión (puedes ajustar la calidad aquí)
-        quality = 75  # La calidad de la imagen WebP (0-100)
+        quality = 95 # La calidad de la imagen WebP (0-100)
         image.save(buf, format="WebP", quality=quality)
 
         # Obtener los datos de la imagen en WebP
