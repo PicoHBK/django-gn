@@ -313,7 +313,7 @@
     "hr_second_pass_steps": 20,
     "hr_upscaler": "R-ESRGAN 4x+ Anime6B",
     "n_iter": 1,
-    "negative_prompt": "(deformed inequalities:1.3) (disfigured irregularly-shaped malformed merged bad-anatomy:1.2) verybadimagenegative_v1.3 EasyNegative negative_hand-neg (bad aesthetic:1.2) Lacking sophistication Unbalanced composition Incongruous style mismatched ugly Distracting elements Inconsistent theme missing arm short lowres blurry anatomical nonsense messy drawing,(NegfeetV2:1.35)",
+    "negative_prompt": "(deformed inequalities:1.3) (disfigured irregularly-shaped malformed merged bad-anatomy:1.2) verybadimagenegative_v1.3 EasyNegative negative_hand-neg (bad aesthetic:1.2) Lacking sophistication Unbalanced composition Incongruous style mismatched ugly Distracting elements Inconsistent theme missing arm short lowres blurry anatomical nonsense messy drawing,NegfeetV2:1.95",
     "override_settings": {},
     "override_settings_restore_afterwards": true,
     "prompt": "(standing:1.4), solo, 1girl, looking at viewer, 2D, anime, official style, anime coloring, anime screencap,<lora:tohru-maidragon:0.8>, tohru, maid, maid headdress, elbow gloves,(long pleated skirt,full-length skirt:1.3)brown shoes, (smile512:1.2), (fullbody:1.4)",
