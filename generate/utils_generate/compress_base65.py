@@ -15,8 +15,9 @@ def compress_images_base64(image_list: list) -> list:
         image = Image.open(BytesIO(image_bytes))
         # Crear un buffer para guardar la imagen en formato WebP
         buf = BytesIO()
-        # Guardar la imagen como WebP sin pérdida de calidad
-        image.save(buf, format="WebP", lossless=True)
+        # Guardar la imagen como WebP con 95% de calidad
+        quality = 95  # Alta calidad con compresión mínima
+        image.save(buf, format="WebP", quality=quality)
         # Obtener los datos de la imagen en WebP
         webp_image_data = buf.getvalue()
         # Convertir los datos a base64
@@ -26,5 +27,5 @@ def compress_images_base64(image_list: list) -> list:
     
     # Mostrar el tamaño de la lista comprimida en MB
     compressed_size_mb = sum(len(image) for image in compressed_images) / (1024 * 1024)
-    print(f"Tamaño después de optimización (sin pérdida): {compressed_size_mb:.2f} MB")
+    print(f"Tamaño comprimido de las imágenes (95% calidad): {compressed_size_mb:.2f} MB")
     return compressed_images  # Retorna la lista de imágenes en base64
