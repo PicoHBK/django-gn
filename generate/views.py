@@ -500,20 +500,38 @@ class PoseListAdminView(APIView):
 
 class PoseEditByIdView(APIView):
     permission_classes = [IsAdminUser]
-
     def patch(self, request, id):
         try:
-            pose = Pose.objects.get(id=id)
+            pose = Pose.objects.select_related('img_type').prefetch_related('special_disabled').get(id=id)
         except Pose.DoesNotExist:
             return Response(
                 {"error": "Pose not found."}, status=status.HTTP_404_NOT_FOUND
             )
-
+        
+        # Extraer special_disabled del request.data para manejarlo separadamente
+        special_disabled_ids = request.data.pop('special_disabled', None)
+        
         serializer = PoseAdminSerializers(pose, data=request.data, partial=True)
         if serializer.is_valid():
+            # Guardar los campos normales
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
+            
+            # Manejar el campo special_disabled si viene en el request
+            if special_disabled_ids is not None:
+                if isinstance(special_disabled_ids, list):
+                    # Limpiar las relaciones actuales y asignar las nuevas
+                    pose.special_disabled.set(special_disabled_ids)
+                else:
+                    return Response(
+                        {"error": "special_disabled debe ser una lista de IDs."}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Recargar el objeto para devolver los datos actualizados
+            pose.refresh_from_db()
+            response_serializer = PoseAdminSerializers(pose)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+            
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -536,13 +554,30 @@ class PoseDeleteByIdView(APIView):
 
 class PoseCreateView(APIView):
     permission_classes = [IsAdminUser]
-
     def post(self, request):
+        # Extraer special_disabled del request.data para manejarlo separadamente
+        special_disabled_ids = request.data.pop('special_disabled', None)
+        
         serializer = PoseAdminSerializers(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
+            # Guardar el objeto pose primero
+            pose = serializer.save()
+            
+            # Manejar el campo special_disabled si viene en el request
+            if special_disabled_ids is not None:
+                if isinstance(special_disabled_ids, list):
+                    # Asignar los specials deshabilitados
+                    pose.special_disabled.set(special_disabled_ids)
+                else:
+                    return Response(
+                        {"error": "special_disabled debe ser una lista de IDs."}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Devolver los datos actualizados incluyendo special_disabled
+            response_serializer = PoseAdminSerializers(pose)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+            
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
