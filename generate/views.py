@@ -485,16 +485,15 @@ class PoseListPreviewView(APIView):
 
 class PoseListAllView(APIView):
     def get(self, request):
-        poses = Pose.objects.all()
+        poses = Pose.objects.select_related('img_type').prefetch_related('special_disabled')
         serializer = PoseSerializers(poses, many=True)
         return Response(serializer.data)
 
 
 class PoseListAdminView(APIView):
     permission_classes = [IsAdminUser]
-
     def get(self, request):
-        poses = Pose.objects.all()
+        poses = Pose.objects.select_related('img_type').prefetch_related('special_disabled')
         serializer = PoseAdminSerializers(poses, many=True)
         return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
