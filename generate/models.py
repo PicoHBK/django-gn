@@ -34,7 +34,6 @@ class Character(models.Model):
 
 
 # Modelo para las poses
-# Modelo para las poses
 class Pose(models.Model):
     name = models.CharField(max_length=255)
     prompt = models.TextField()
@@ -50,7 +49,6 @@ class Pose(models.Model):
         choices=TIER_CHOICES,
         default="tier1",  # El valor predeterminado es 'tier1'
     )
-
     img_type = models.ForeignKey(
         "ImageType",  # Entre comillas porque está definido más abajo
         on_delete=models.SET_NULL,
@@ -59,14 +57,22 @@ class Pose(models.Model):
         related_name="poses",
     )
     
-    # Nuevo campo: specials que deben ser deshabilitados con esta pose
+    # Campo original: specials que deben ser deshabilitados con esta pose
     special_disabled = models.ManyToManyField(
         "Special",  # Entre comillas porque está definido más abajo
         related_name="disabled_in_poses",
         blank=True,
         help_text="Specials que serán deshabilitados cuando se seleccione esta pose"
     )
-
+    
+    # Nuevo campo: specials que deben ser habilitados con esta pose
+    special_enabled = models.ManyToManyField(
+        "Special",  # Entre comillas porque está definido más abajo
+        related_name="enabled_in_poses",
+        blank=True,
+        help_text="Specials que serán habilitados cuando se seleccione esta pose"
+    )
+    
     def __str__(self):
         return self.name
 

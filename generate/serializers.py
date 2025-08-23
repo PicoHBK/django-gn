@@ -20,16 +20,22 @@ class SkinSerializersAdmin(serializers.ModelSerializer):
 
 class PoseSerializers(serializers.ModelSerializer):
     special_disabled = serializers.SerializerMethodField()
+    special_enabled = serializers.SerializerMethodField()
     
     class Meta:
         model = Pose
-        fields = ["name","tier","img_type","special_disabled"]
+        fields = ["name", "tier", "img_type", "special_disabled", "special_enabled"]
     
     def get_special_disabled(self, obj):
         return [special.name for special in obj.special_disabled.all()]
-        
+    
+    def get_special_enabled(self, obj):
+        return [special.name for special in obj.special_enabled.all()]
+
+
 class PoseAdminSerializers(serializers.ModelSerializer):
     special_disabled = serializers.SerializerMethodField()
+    special_enabled = serializers.SerializerMethodField()
     
     class Meta:
         model = Pose
@@ -37,6 +43,9 @@ class PoseAdminSerializers(serializers.ModelSerializer):
     
     def get_special_disabled(self, obj):
         return [special.name for special in obj.special_disabled.all()]
+    
+    def get_special_enabled(self, obj):
+        return [special.name for special in obj.special_enabled.all()]
 
 class EmoteSerializers(serializers.ModelSerializer):
     class Meta:
