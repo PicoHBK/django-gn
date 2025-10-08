@@ -59,7 +59,7 @@ class ConcatenatePromptsView(APIView):
             )
 
         # Bloqueamos la vista para que solo un cliente pueda acceder a la vez
-        cache.set("view_locked", True, timeout=60)  # El bloqueo durará 60 segundos
+        cache.set("view_locked", True, timeout=60)
         print(cache.get("view_locked"))
 
         try:
@@ -68,9 +68,7 @@ class ConcatenatePromptsView(APIView):
             request_code = data.get("code")
 
             # Intentamos obtener el código desde la base de datos
-            with (
-                transaction.atomic()
-            ):  # Aseguramos que todo se haga en una única transacción
+            with transaction.atomic():
                 # Bloqueamos el código para que solo una solicitud pueda modificarlo a la vez
                 code = Code.objects.select_for_update().get(code=request_code)
 
@@ -100,7 +98,7 @@ class ConcatenatePromptsView(APIView):
                 if pose_name:
                     controlnet = None
 
-                if pose_name and not controlnet :
+                if pose_name and not controlnet:
                     pose = Pose.objects.filter(name=pose_name).first()
                     if pose:
                         if not check_tier(pose.tier, code_tier):
@@ -111,15 +109,11 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_403_FORBIDDEN,
                             )
 
-                        if pose.prompt:  # Aseguramos que pose.prompt no sea None o vacío
+                        if pose.prompt:
                             cleaned_prompt = extract_neg_prompt(pose.prompt, neg_prompts)
                             prompts.append(cleaned_prompt)
-                
-                
-                 # Lo defines arriba para poder usarlo más abajo
 
                 if controlnet:
-                    # Obtener el primer objeto ControlPose con el id proporcionado o None si no se encuentra
                     image = ControlPose.objects.filter(id=controlnet).first()
                     if image:
                         print(code_tier)
@@ -131,19 +125,13 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_403_FORBIDDEN,
                             )
 
-                        # Si se llega aquí, significa que el código tiene el nivel adecuado
                         if image.url_img:
                             img_base_64 = get_base64_from_url(image.url_img)
-                                
-
-
-
 
                 # Buscamos el 'Character' usando el valor de 'character' del payload
                 character_name = data.get("character")
                 if character_name:
                     try:
-                        # Usamos .get() para obtener un solo 'Character', ya que solo esperamos uno
                         character = Character.objects.get(name=character_name)
 
                         if not check_tier(character.tier, code_tier):
@@ -154,7 +142,6 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_403_FORBIDDEN,
                             )
 
-                        # Buscamos la 'Skin' usando el valor de 'skin' del payload, pero solo si pertenece al 'Character' encontrado
                         skin_name = data.get("skin")
                         if skin_name:
                             skin = Skin.objects.filter(
@@ -168,7 +155,7 @@ class ConcatenatePromptsView(APIView):
                                         },
                                         status=status.HTTP_403_FORBIDDEN,
                                     )
-                                cleaned_prompt = extract_neg_prompt(skin.prompt,neg_prompts)
+                                cleaned_prompt = extract_neg_prompt(skin.prompt, neg_prompts)
                                 prompts.append(cleaned_prompt)
                             else:
                                 return Response(
@@ -198,7 +185,7 @@ class ConcatenatePromptsView(APIView):
 
                 # Buscamos en el modelo 'ImageType' usando el valor de 'image' del payload
                 image_type = data.get("image")
-                image_type_instance  = None
+                image_type_instance = None
                 if image_type:
                     image_type_instance = ImageType.objects.filter(
                         name=image_type
@@ -207,23 +194,20 @@ class ConcatenatePromptsView(APIView):
                         prompts.append(image_type_instance.prompt)
 
                 specials_name = data.get("special")
-                new_prompts = prompts
+                new_prompts = prompts.copy()  # CAMBIO: Usar .copy() para evitar mutaciones
                 print(f"new_prompts {new_prompts}")
+                
                 if specials_name:
                     check_tier_lvl = check_tier_level(code_tier) + 1
-
                     print(f"lvl code {check_tier_lvl}")
 
-                    # Limitar la cantidad de elementos que se recorrerán
                     max_elements = min(len(specials_name), check_tier_lvl * 4)
                     
-                    for special_name in specials_name[
-                        :max_elements
-                    ]:  # Restringir la iteración
+                    for special_name in specials_name[:max_elements]:
                         check_special = validate_special(
                             special_name, code_tier, new_prompts, neg_prompts
                         )
-                        if check_special and check_special !=" ":
+                        if check_special and check_special != " ":
                             new_prompts = check_special
                         else:
                             return Response(
@@ -233,19 +217,26 @@ class ConcatenatePromptsView(APIView):
                                 status=status.HTTP_403_FORBIDDEN,
                             )
 
+                # CAMBIO: Validar new_prompts en lugar de prompts
+                if not new_prompts:
+                    return Response(
+                        {
+                            "error": "No valid resources found or you do not have the required tier."
+                        },
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
                 # Concatenamos todos los prompts separados por comas
                 concatenated_prompts = ", ".join(new_prompts)
                 concatenated_neg_prompts = ", ".join(neg_prompts)
                 
                 print(f"concatenated_prompts {concatenated_prompts}")
 
+                # Ruta del archivo JSON
+                file_path = "generate/plantilla.json"
 
-                # Solo si hay recursos válidos, realizamos la solicitud a la URL externa
-                if prompts:
-                    # Ruta del archivo JSON
-                    file_path = "generate/plantilla.json"
-
-                    # Modificamos el JSON con el concatenated_prompts
+                # CAMBIO: Agregar manejo de errores en modificar_json
+                try:
                     modified_data = modificar_json(
                         file_path,
                         concatenated_prompts,
@@ -254,72 +245,113 @@ class ConcatenatePromptsView(APIView):
                         image_type_instance,
                         img_base_64
                     )
-                    
-                    
-                    
-                    modified_data["prompt"] = format_commas(modified_data["prompt"])
+                except Exception as e:
+                    print(f"Error in modificar_json: {str(e)}")
+                    return Response(
+                        {"error": "Failed to prepare request data."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
 
-                    # Realizamos una solicitud a otra URL con el JSON modificado como payload
-                    url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
-                    response = requests.post(url, json=modified_data,stream=True)
+                modified_data["prompt"] = format_commas(modified_data["prompt"])
 
-                    # Verificamos si la solicitud fue exitosa
-                    if response.status_code == 200:
-                        chunks= []
+                # Realizamos una solicitud a otra URL con el JSON modificado como payload
+                url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
+                
+                # CAMBIO: Agregar timeout y mejor manejo de errores
+                try:
+                    response = requests.post(url, json=modified_data, stream=True, timeout=300)
+                except requests.exceptions.RequestException as e:
+                    print(f"Request error: {str(e)}")
+                    return Response(
+                        {"error": "The AI is unavailable. Please try again later."},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+
+                # Verificamos si la solicitud fue exitosa
+                if response.status_code == 200:
+                    try:
+                        chunks = []
                         for chunk in response.iter_content(chunk_size=8192):
                             if chunk:
                                 chunks.append(chunk)
-                                
-                        response_data = json.loads(b''.join(chunks).decode('utf-8'))
-                        # Si la respuesta es exitosa, calculamos los usos restantes y devolvemos la respuesta
-                        uses_left = code.max_uses - code.uses
-
-                        # Intentamos usar el código (solo puede ser usado una vez)
-                        if not code.use_code():
+                        
+                        # CAMBIO: Validar que hay contenido antes de parsear
+                        if not chunks:
+                            print("Error: Empty response from AI")
                             return Response(
-                                {"error": "Failed to use the code. Please try again."},
-                                status=status.HTTP_400_BAD_REQUEST,
+                                {"error": "Empty response from AI service."},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             )
-
-
+                        
+                        response_data = json.loads(b''.join(chunks).decode('utf-8'))
+                        
+                        # CAMBIO: Validar que response_data tiene imágenes
+                        if not response_data.get("images"):
+                            print("Error: No images in response")
+                            return Response(
+                                {"error": "No images generated."},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            )
+                        
+                    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                        print(f"Error parsing response: {str(e)}")
                         return Response(
-                            {
-                                "images": compress_images_base64(response_data.get("images")),
-                                "tier": code.tier,  # El tier del código
-                                "uses_left": uses_left,  # Los usos restantes del código
-                                "code": code.code,
-                            },
-                            status=status.HTTP_200_OK,
+                            {"error": "Invalid response from AI service."},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         )
-                    else:
-                        # Imprimir el error en la consola
-                        print(
-                            f"Error: Received status code {response.status_code} with response: {response.text}"
-                        )
+                    
+                    # Si la respuesta es exitosa, calculamos los usos restantes
+                    uses_left = code.max_uses - code.uses
 
+                    # Intentamos usar el código
+                    if not code.use_code():
                         return Response(
-                            {"error": "The AI is unavailable. Please try again later."},
+                            {"error": "Failed to use the code. Please try again."},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
-                else:
-                    # Si no hay recursos válidos, no usamos el código y devolvemos un error
+                    # CAMBIO: Agregar manejo de errores en compress_images_base64
+                    try:
+                        compressed_images = compress_images_base64(response_data.get("images"))
+                    except Exception as e:
+                        print(f"Error compressing images: {str(e)}")
+                        # Devolver imágenes sin comprimir si falla
+                        compressed_images = response_data.get("images")
+
                     return Response(
                         {
-                            "error": "No valid resources found or you do not have the required tier."
+                            "images": compressed_images,
+                            "tier": code.tier,
+                            "uses_left": uses_left,
+                            "code": code.code,
                         },
-                        status=status.HTTP_403_FORBIDDEN,
+                        status=status.HTTP_200_OK,
+                    )
+                else:
+                    print(
+                        f"Error: Received status code {response.status_code} with response: {response.text}"
+                    )
+                    return Response(
+                        {"error": "The AI is unavailable. Please try again later."},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
                     )
 
         except Code.DoesNotExist:
-            # Si el código no existe, manejamos la excepción y devolvemos un error
             return Response(
                 {"error": "Invalid code."}, status=status.HTTP_401_UNAUTHORIZED
             )
-
+        except Exception as e:
+            # CAMBIO: Agregar logging de excepciones no capturadas
+            print(f"Unexpected error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         finally:
+            # CAMBIO: Asegurar que siempre se elimine el lock
             cache.delete("view_locked")
-
 
 #####
 
