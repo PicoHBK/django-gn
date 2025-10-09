@@ -211,7 +211,7 @@
   "hr_second_pass_steps": 0,
   "hr_upscaler": "Latent",
   "n_iter": 1,
-  "negative_prompt": "(lowres:1.2), (worst quality:1.4), (low quality:1.4), (bad anatomy:1.4), bad hands, multiple views, comic, jpeg artifacts, patreon logo, patreon username, web address, signature, watermark, text, logo, artist name, censored, overexposure,,",
+  "negative_prompt": "lazyneg",
   "override_settings": {},
   "override_settings_restore_afterwards": true,
   "prompt": "contrapposto,CLICLASS,black hair,double bun,bun cover,pelvic curtain,spiked bracelet,black bracelet,<lora:ChunLiSFIllustrious:.6>,(materpiece:1.2),(best quality:1.4),(full body:1.2),bare,naked,(completely nude:1.3),nude,(platform stiletto heels:1.2),garden,flowers",
