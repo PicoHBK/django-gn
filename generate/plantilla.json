@@ -229,7 +229,7 @@
   "seed_enable_extras": true,
   "seed_resize_from_h": -1,
   "seed_resize_from_w": -1,
-  "steps": 28,
+  "steps": 22,
   "styles": [],
   "subseed": -1,
   "subseed_strength": 0,
