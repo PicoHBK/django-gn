@@ -224,41 +224,37 @@ def format_commas(text):
 
 def process_special_colors(prompt, colors):
     """
-    Reemplaza los placeholders [c1], [c2], [c3]... con los colores proporcionados.
-    Si no hay suficientes colores, elimina los placeholders sobrantes.
+    Reemplaza los placeholders [texto] con los colores proporcionados en orden.
+    Si no hay colores, solo elimina los corchetes dejando el texto interno.
     
     Args:
-        prompt (str): Prompt con placeholders tipo "[c1] shirt, [c2] pants"
+        prompt (str): Prompt con placeholders tipo "[red] shirt, [blue] pants"
         colors (list): Lista de colores ["black", "gold"]
     
     Returns:
-        str: Prompt con colores aplicados o placeholders eliminados
+        str: Prompt con colores aplicados o solo sin corchetes
+    
+    Ejemplos:
+        - prompt="[red] lips", colors=["gold"] → "gold lips"
+        - prompt="[red] lips", colors=[] → "red lips"
+        - prompt="[red] lips, [blue] dress", colors=["gold"] → "gold lips, blue dress"
     """
     if not colors:
-        # Si no hay colores, eliminar todos los [cN] y sus espacios
-        result = re.sub(r'\[c\d+\]\s*', '', prompt)
-        # Limpiar espacios y comas duplicadas
-        result = re.sub(r'\s*,\s*,\s*', ', ', result)
-        result = re.sub(r'^\s*,\s*|\s*,\s*$', '', result)
+        # Si no hay colores, solo eliminar los corchetes dejando el contenido
+        result = re.sub(r'\[([^\]]+)\]', r'\1', prompt)
         return result.strip()
     
-    # Encontrar todos los placeholders [c1], [c2], etc.
-    placeholders = re.findall(r'\[c(\d+)\]', prompt)
+    # Encontrar todos los placeholders [cualquier_texto]
+    placeholders = re.findall(r'\[([^\]]+)\]', prompt)
     
     result = prompt
-    for placeholder in placeholders:
-        index = int(placeholder) - 1  # [c1] = index 0
-        
+    for index, placeholder_content in enumerate(placeholders):
         if index < len(colors):
-            # Reemplazar [cN] con el color correspondiente
-            result = result.replace(f'[c{placeholder}]', colors[index])
+            # Reemplazar [contenido] con el color correspondiente
+            result = result.replace(f'[{placeholder_content}]', colors[index], 1)
         else:
-            # Eliminar [cN] si no hay color para ese índice
-            result = re.sub(rf'\[c{placeholder}\]\s*', '', result)
-    
-    # Limpiar espacios y comas duplicadas
-    result = re.sub(r'\s*,\s*,\s*', ', ', result)
-    result = re.sub(r'^\s*,\s*|\s*,\s*$', '', result)
+            # Si no hay más colores, solo quitar los corchetes
+            result = result.replace(f'[{placeholder_content}]', placeholder_content, 1)
     
     return result.strip()
 
