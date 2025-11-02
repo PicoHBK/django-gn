@@ -46,7 +46,16 @@ from .serializers import (
     ControlPoseSerializers,
 )
 
-from .services import check_tier, validate_special, optimize_image, check_tier_level, extract_neg_prompt, format_commas
+from .services import (
+    check_tier, 
+    validate_special, 
+    optimize_image, 
+    check_tier_level, 
+    extract_neg_prompt, 
+    format_commas,
+    process_special_colors,
+    validate_and_process_specials
+)
 
 
 class ConcatenatePromptsView(APIView):
@@ -193,29 +202,32 @@ class ConcatenatePromptsView(APIView):
                     if image_type_instance:
                         prompts.append(image_type_instance.prompt)
 
-                specials_name = data.get("special")
-                new_prompts = prompts.copy()  # CAMBIO: Usar .copy() para evitar mutaciones
-                print(f"new_prompts {new_prompts}")
+                # ============ NUEVA LÓGICA: additionalSpecial en lugar de special ============
+                additional_specials = data.get("additionalSpecial", [])
+                new_prompts = prompts.copy()
                 
-                if specials_name:
-                    check_tier_lvl = check_tier_level(code_tier) + 1
-                    print(f"lvl code {check_tier_lvl}")
-
-                    max_elements = min(len(specials_name), check_tier_lvl * 4)
+                print(f"Initial prompts: {new_prompts}")
+                
+                if additional_specials:
+                    print(f"Processing additionalSpecial with {len(additional_specials)} items")
                     
-                    for special_name in specials_name[:max_elements]:
-                        check_special = validate_special(
-                            special_name, code_tier, new_prompts, neg_prompts
+                    # Usamos la nueva función validate_and_process_specials de services.py
+                    new_prompts, success = validate_and_process_specials(
+                        additional_specials, 
+                        code_tier, 
+                        prompts.copy(), 
+                        neg_prompts
+                    )
+                    
+                    if not success or new_prompts is None:
+                        return Response(
+                            {
+                                "error": "The code does not have the required tier to access this special or does not exist."
+                            },
+                            status=status.HTTP_403_FORBIDDEN,
                         )
-                        if check_special and check_special != " ":
-                            new_prompts = check_special
-                        else:
-                            return Response(
-                                {
-                                    "error": "The code does not have the required tier to access this special or does not exist."
-                                },
-                                status=status.HTTP_403_FORBIDDEN,
-                            )
+                    
+                    print(f"Prompts after processing additionalSpecial: {new_prompts}")
 
                 # CAMBIO: Validar new_prompts en lugar de prompts
                 if not new_prompts:
@@ -230,7 +242,8 @@ class ConcatenatePromptsView(APIView):
                 concatenated_prompts = ", ".join(new_prompts)
                 concatenated_neg_prompts = ", ".join(neg_prompts)
                 
-                print(f"concatenated_prompts {concatenated_prompts}")
+                print(f"Final concatenated_prompts: {concatenated_prompts}")
+                print(f"Final concatenated_neg_prompts: {concatenated_neg_prompts}")
 
                 # Ruta del archivo JSON
                 file_path = "generate/plantilla.json"

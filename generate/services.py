@@ -7,6 +7,7 @@ import base64
 from io import BytesIO
 
 
+
 def check_tier(resource_tier, code_tier):
     tiers_order = ["tier1", "tier2", "tier3", "tier4", "tier5"]
     try:
@@ -218,6 +219,138 @@ def format_commas(text):
     # Eliminar saltos de línea adicionales
     formatted_text = re.sub(r'\n', '', formatted_text)
     return formatted_text
+
+
+
+def process_special_colors(prompt, colors):
+    """
+    Reemplaza los placeholders [c1], [c2], [c3]... con los colores proporcionados.
+    Si no hay suficientes colores, elimina los placeholders sobrantes.
+    
+    Args:
+        prompt (str): Prompt con placeholders tipo "[c1] shirt, [c2] pants"
+        colors (list): Lista de colores ["black", "gold"]
+    
+    Returns:
+        str: Prompt con colores aplicados o placeholders eliminados
+    """
+    if not colors:
+        # Si no hay colores, eliminar todos los [cN] y sus espacios
+        result = re.sub(r'\[c\d+\]\s*', '', prompt)
+        # Limpiar espacios y comas duplicadas
+        result = re.sub(r'\s*,\s*,\s*', ', ', result)
+        result = re.sub(r'^\s*,\s*|\s*,\s*$', '', result)
+        return result.strip()
+    
+    # Encontrar todos los placeholders [c1], [c2], etc.
+    placeholders = re.findall(r'\[c(\d+)\]', prompt)
+    
+    result = prompt
+    for placeholder in placeholders:
+        index = int(placeholder) - 1  # [c1] = index 0
+        
+        if index < len(colors):
+            # Reemplazar [cN] con el color correspondiente
+            result = result.replace(f'[c{placeholder}]', colors[index])
+        else:
+            # Eliminar [cN] si no hay color para ese índice
+            result = re.sub(rf'\[c{placeholder}\]\s*', '', result)
+    
+    # Limpiar espacios y comas duplicadas
+    result = re.sub(r'\s*,\s*,\s*', ', ', result)
+    result = re.sub(r'^\s*,\s*|\s*,\s*$', '', result)
+    
+    return result.strip()
+
+
+def validate_and_process_specials(additional_specials, code_tier, existing_prompts, neg_prompts):
+    """
+    Procesa el array additionalSpecial del body, validando tier y aplicando colores.
+    
+    Args:
+        additional_specials (list): Array de objetos con estructura {"name": "...", "active": bool, "colors": [...]}
+        code_tier (str): Tier del código (ej: "tier3")
+        existing_prompts (list): Lista de prompts existentes para agregar
+        neg_prompts (list): Lista de prompts negativos
+    
+    Returns:
+        tuple: (list de prompts actualizados, bool de éxito)
+    """
+    new_prompts = existing_prompts.copy()
+    
+    # Calcular cuántos specials puede usar según el tier
+    tier_level = check_tier_level(code_tier)
+    max_specials = (tier_level + 1) * 4
+    
+    # Filtrar solo los activos
+    active_specials = [s for s in additional_specials if s.get("active", False)]
+    
+    # Limitar según el tier
+    specials_to_process = active_specials[:max_specials]
+    
+    print(f"Processing {len(specials_to_process)} active specials (max: {max_specials})")
+    
+    for special_data in specials_to_process:
+        special_name = special_data.get("name")
+        colors = special_data.get("colors", [])
+        
+        print(f"Processing special: {special_name} with colors: {colors}")
+        
+        try:
+            # Buscar el Special en la base de datos
+            special = Special.objects.filter(name=special_name).first()
+            
+            if not special:
+                print(f"Special not found: {special_name}")
+                return (None, False)
+            
+            # Verificar tier
+            if not check_tier(special.tier, code_tier):
+                print(f"Tier check failed for {special_name}")
+                return (None, False)
+            
+            # Procesar el prompt aplicando los colores
+            processed_prompt = process_special_colors(special.prompt, colors)
+            print(f"Processed prompt: {processed_prompt}")
+            
+            # Extraer negative prompts si existen
+            cleaned_prompt = extract_neg_prompt(processed_prompt, neg_prompts)
+            new_prompts.append(cleaned_prompt)
+            
+            # Obtener tags_required y tags_deleted
+            tags = []
+            tags_deleted = []
+            
+            if hasattr(special, 'tags_required') and special.tags_required.exists():
+                tags = [tag.name for tag in special.tags_required.all()]
+            
+            if hasattr(special, 'tags_deleted') and special.tags_deleted.exists():
+                tags_deleted = [tag.name for tag in special.tags_deleted.all()]
+            
+            # Verificar si al menos uno de los tags está presente en algún prompt
+            found_tag = False
+            for prompt in new_prompts:
+                if any(tag in prompt for tag in tags):
+                    found_tag = True
+                    break
+            
+            # Si no se encontró ningún tag, agregar un tag aleatorio
+            if not found_tag and tags:
+                random_tag = random.choice(tags)
+                new_prompts.append(f"({random_tag}:1.2)")
+                print(f"Added random tag: {random_tag}")
+            
+            # Depurar los prompts eliminando tags_deleted
+            formatted_prompts = transform_description_list(new_prompts)
+            new_prompts = deleteTags(tags_deleted, formatted_prompts)
+                
+        except Exception as e:
+            print(f"Error processing special {special_name}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return (None, False)
+    
+    return (new_prompts, True)
 
                 
                 
