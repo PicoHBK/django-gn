@@ -186,12 +186,11 @@
         }
       ]
     },
-    "API payload": { "args": [] },
     "Comments": { "args": [] },
     "Extra options": { "args": [] },
     "Hypertile": { "args": [] },
     "Refiner": { "args": [false, "", 0.8] },
-    "Sampler": { "args": [28, "Euler a", "Automatic"] },
+    "Sampler": { "args": [22, "Euler a", "Automatic"] },
     "Seed": { "args": [-1, false, -1, 0, 0, 0] }
   },
   "batch_size": 1,
@@ -202,7 +201,7 @@
   "do_not_save_grid": false,
   "do_not_save_samples": false,
   "enable_hr": false,
-  "height": 1192,
+  "height": 1216,
   "hr_negative_prompt": "",
   "hr_prompt": "",
   "hr_resize_x": 0,
@@ -217,7 +216,7 @@
   "prompt": "contrapposto,CLICLASS,black hair,double bun,bun cover,pelvic curtain,spiked bracelet,black bracelet,<lora:ChunLiSFIllustrious:.6>,(materpiece:1.2),(best quality:1.4),(full body:1.2),bare,naked,(completely nude:1.3),nude,(platform stiletto heels:1.2),garden,flowers",
   "restore_faces": false,
   "s_churn": 0,
-  "s_min_uncond": 0,
+  "s_min_uncond": 2.99,
   "s_noise": 1,
   "s_tmax": null,
   "s_tmin": 0,
@@ -234,5 +233,5 @@
   "subseed": -1,
   "subseed_strength": 0,
   "tiling": false,
-  "width": 560
+  "width": 832
 }

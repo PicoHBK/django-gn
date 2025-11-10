@@ -325,7 +325,8 @@ class ConcatenatePromptsView(APIView):
 
                     # CAMBIO: Agregar manejo de errores en compress_images_base64
                     try:
-                        compressed_images = compress_images_base64(response_data.get("images"))
+                        #compressed_images = compress_images_base64(response_data.get("images"))
+                        compressed_images = response_data.get("images")
                     except Exception as e:
                         print(f"Error compressing images: {str(e)}")
                         # Devolver imágenes sin comprimir si falla
