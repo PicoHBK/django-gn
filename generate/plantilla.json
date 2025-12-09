@@ -196,6 +196,7 @@
   "do_not_save_samples": false,
   "enable_hr": true,
   "height": 1216,
+  "hr_additional_modules": ["Use same choices"],
   "hr_negative_prompt": "",
   "hr_prompt": "",
   "hr_resize_x": 0,
