@@ -202,7 +202,7 @@
   "hr_resize_y": 0,
   "hr_scale": 2,
   "hr_second_pass_steps": 10,
-  "hr_upscaler": "RealESRGAN_x4plus",
+  "hr_upscaler": "Latent",
   "n_iter": 1,
   "negative_prompt": "lazyneg",
   "override_settings": {},
