@@ -205,7 +205,9 @@
   "hr_upscaler": "RealESRGAN_x4plus",
   "n_iter": 1,
   "negative_prompt": "lazyneg",
-  "override_settings": {},
+  "override_settings": {
+    "CLIP_stop_at_last_layers": 3
+  },
   "override_settings_restore_afterwards": true,
   "prompt": "",
   "restore_faces": false,
@@ -227,6 +229,5 @@
   "subseed": -1,
   "subseed_strength": 0,
   "tiling": false,
-  "width": 832,
-  "clip_skip": 3
+  "width": 832
 }
