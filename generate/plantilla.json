@@ -227,5 +227,6 @@
   "subseed": -1,
   "subseed_strength": 0,
   "tiling": false,
-  "width": 832
+  "width": 832,
+  "clip_skip": 3
 }
