@@ -75,6 +75,17 @@ class ConcatenatePromptsView(APIView):
             # Recibimos el payload de la solicitud
             data = request.data
             request_code = data.get("code")
+            
+            # NUEVO: Recibir clip_skip del payload (valor por defecto: 2)
+            clip_skip = data.get("clip_skip", 2)
+            
+            # Validar que clip_skip sea un número entero entre 1 y 12
+            try:
+                clip_skip = int(clip_skip)
+                if clip_skip < 1 or clip_skip > 12:
+                    clip_skip = 2  # Valor por defecto si está fuera de rango
+            except (ValueError, TypeError):
+                clip_skip = 2  # Valor por defecto si no es válido
 
             # Intentamos obtener el código desde la base de datos
             with transaction.atomic():
@@ -244,11 +255,12 @@ class ConcatenatePromptsView(APIView):
                 
                 print(f"Final concatenated_prompts: {concatenated_prompts}")
                 print(f"Final concatenated_neg_prompts: {concatenated_neg_prompts}")
+                print(f"Clip Skip value: {clip_skip}")  # NUEVO: Log del clip_skip
 
                 # Ruta del archivo JSON
                 file_path = "generate/plantilla.json"
 
-                # CAMBIO: Agregar manejo de errores en modificar_json
+                # CAMBIO: Agregar clip_skip como parámetro a modificar_json
                 try:
                     modified_data = modificar_json(
                         file_path,
@@ -256,7 +268,8 @@ class ConcatenatePromptsView(APIView):
                         concatenated_prompts,
                         concatenated_neg_prompts,
                         image_type_instance,
-                        img_base_64
+                        img_base_64,
+                        clip_skip  # NUEVO: Pasar clip_skip
                     )
                 except Exception as e:
                     print(f"Error in modificar_json: {str(e)}")

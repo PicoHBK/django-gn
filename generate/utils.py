@@ -1,6 +1,6 @@
 import json
 import re
-def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type, img_base_64):
+def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type, img_base_64, clip_skip=2):
     # Cargar el archivo JSON
     with open(file_path, 'r') as file:
         data = json.load(file)
@@ -16,7 +16,17 @@ def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type,
     if image_type:
         modified_data["width"] = image_type.width
         modified_data["height"] = image_type.height
-
+    
+    # NUEVO: Configurar CLIP Skip en override_settings
+    if "override_settings" not in modified_data:
+        modified_data["override_settings"] = {}
+    
+    modified_data["override_settings"]["CLIP_stop_at_last_layers"] = clip_skip
+    
+    # Asegurar que override_settings_restore_afterwards esté en true
+    if "override_settings_restore_afterwards" not in modified_data:
+        modified_data["override_settings_restore_afterwards"] = True
+    
     # Comprobar si img_base_64 es None
     if img_base_64 is None:
         # Si es None, borrar el atributo "ControlNet"
