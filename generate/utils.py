@@ -1,6 +1,7 @@
 import json
 import re
 def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type, img_base_64, clip_skip=2):
+    
     # Cargar el archivo JSON
     with open(file_path, 'r') as file:
         data = json.load(file)
@@ -17,7 +18,7 @@ def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type,
         modified_data["width"] = image_type.width
         modified_data["height"] = image_type.height
     
-    # NUEVO: Configurar CLIP Skip en override_settings
+    # Configurar CLIP Skip en override_settings
     if "override_settings" not in modified_data:
         modified_data["override_settings"] = {}
     
@@ -26,29 +27,32 @@ def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type,
     # Asegurar que override_settings_restore_afterwards esté en true
     if "override_settings_restore_afterwards" not in modified_data:
         modified_data["override_settings_restore_afterwards"] = True
+
+    # Limpiar prompt para ADetailer (quitar tokens <...>)
+    ad_prompt_clean = re.sub(r'<[^>]+>', '', new_prompt)
+    ad_prompt_clean = re.sub(r',\s*,', ',', ad_prompt_clean)
+    ad_prompt_clean = re.sub(r'^\s*,|,\s*$', '', ad_prompt_clean).strip()
     
+    # Setear el prompt limpio en ADetailer
+    if "alwayson_scripts" in modified_data and "ADetailer" in modified_data["alwayson_scripts"]:
+        modified_data["alwayson_scripts"]["ADetailer"]["args"][2]["ad_prompt"] = ad_prompt_clean
+
     # Comprobar si img_base_64 es None
     if img_base_64 is None:
-        # Si es None, borrar el atributo "ControlNet"
         if "alwayson_scripts" in modified_data and "ControlNet" in modified_data["alwayson_scripts"]:
             del modified_data["alwayson_scripts"]["ControlNet"]
     else:
-        # Si img_base_64 existe, reemplazar el valor en el primer elemento de "args" dentro de "ControlNet"
         if "alwayson_scripts" in modified_data and "ControlNet" in modified_data["alwayson_scripts"]:
             control_net = modified_data["alwayson_scripts"]["ControlNet"]
             if "args" in control_net:
                 args = control_net["args"]
                 if args:
-                    # Buscar el primer elemento donde "enabled" sea True
                     for arg in args:
                         if isinstance(arg, dict) and arg.get("enabled") is True:
-                            # Asegurarnos de que "image" existe en el diccionario
                             if "image" in arg and arg["image"] is not None:
-                                # Modificar solo el campo "image", manteniendo los demás atributos intactos
                                 arg["image"]["image"] = img_base_64
-                            break  # Solo modificamos el primer elemento encontrado
+                            break
     
-    # Retornar el diccionario modificado
     return modified_data
 
 
