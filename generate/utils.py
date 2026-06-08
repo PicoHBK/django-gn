@@ -28,8 +28,8 @@ def modificar_json(file_path, new_prompt, new_hr_prompt, neg_prompt, image_type,
     if "override_settings_restore_afterwards" not in modified_data:
         modified_data["override_settings_restore_afterwards"] = True
 
-    # Limpiar prompt para ADetailer (quitar todos los loras EXCEPTO lightingSlider)
-    ad_prompt_clean = re.sub(r'<lora:(?!lightingSlider)[^>]*>', '', new_prompt)
+    # Limpiar prompt para ADetailer (dejar pasar todos los loras)
+    ad_prompt_clean = new_prompt
     ad_prompt_clean = re.sub(r',\s*,', ',', ad_prompt_clean)
     ad_prompt_clean = re.sub(r'^\s*,|,\s*$', '', ad_prompt_clean).strip()
     
