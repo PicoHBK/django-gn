@@ -67,7 +67,7 @@ class ConcatenatePromptsView(APIView):
             )
 
         # TTL = SD timeout + buffer. El finally libera antes si termina antes.
-        cache.set("view_locked", True, timeout=75)
+        cache.set("view_locked", True, timeout=105)
 
         try:
             data = request.data
@@ -252,7 +252,7 @@ class ConcatenatePromptsView(APIView):
             print(f"[SD] Calling: {sd_url}")
 
             try:
-                response = requests.post(sd_url, json=modified_data, stream=True, timeout=60)
+                response = requests.post(sd_url, json=modified_data, stream=True, timeout=90)
                 print(f"[SD] Response status: {response.status_code}")
             except requests.exceptions.RequestException as e:
                 print(f"[SD] Request error: {type(e).__name__}: {str(e)}")
