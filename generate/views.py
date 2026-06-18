@@ -249,11 +249,13 @@ class ConcatenatePromptsView(APIView):
 
             # --- Llamado al SD fuera de cualquier transacción ---
             sd_url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
+            print(f"[SD] Calling: {sd_url}")
 
             try:
                 response = requests.post(sd_url, json=modified_data, stream=True, timeout=60)
+                print(f"[SD] Response status: {response.status_code}")
             except requests.exceptions.RequestException as e:
-                print(f"Request error: {str(e)}")
+                print(f"[SD] Request error: {type(e).__name__}: {str(e)}")
                 return Response(
                     {"error": "The AI is unavailable. Please try again later."},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
