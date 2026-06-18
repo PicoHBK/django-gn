@@ -66,8 +66,8 @@ class ConcatenatePromptsView(APIView):
                 status=status.HTTP_423_LOCKED,
             )
 
-        # Timeout matches SD timeout (300s) + buffer
-        cache.set("view_locked", True, timeout=320)
+        # TTL = SD timeout + buffer. El finally libera antes si termina antes.
+        cache.set("view_locked", True, timeout=75)
 
         try:
             data = request.data
@@ -251,7 +251,7 @@ class ConcatenatePromptsView(APIView):
             sd_url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
 
             try:
-                response = requests.post(sd_url, json=modified_data, stream=True, timeout=300)
+                response = requests.post(sd_url, json=modified_data, stream=True, timeout=60)
             except requests.exceptions.RequestException as e:
                 print(f"Request error: {str(e)}")
                 return Response(
