@@ -262,7 +262,7 @@ class ConcatenatePromptsView(APIView):
                 )
 
             if response.status_code != 200:
-                print(f"Error: Received status code {response.status_code} with response: {response.text}")
+                print(f"[SD] Error status {response.status_code} | body: {response.text[:500]}")
                 return Response(
                     {"error": "The AI is unavailable. Please try again later."},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -274,24 +274,28 @@ class ConcatenatePromptsView(APIView):
                     if chunk:
                         chunks.append(chunk)
 
+                print(f"[SD] Chunks received: {len(chunks)}, total bytes: {sum(len(c) for c in chunks)}")
+
                 if not chunks:
-                    print("Error: Empty response from AI")
+                    print("[SD] Empty response from AI")
                     return Response(
                         {"error": "Empty response from AI service."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
 
                 response_data = json.loads(b''.join(chunks).decode('utf-8'))
+                images = response_data.get("images")
+                print(f"[SD] Images in response: {len(images) if images else 0}")
 
-                if not response_data.get("images"):
-                    print("Error: No images in response")
+                if not images:
+                    print(f"[SD] Response keys: {list(response_data.keys())}")
                     return Response(
                         {"error": "No images generated."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
 
             except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                print(f"Error parsing response: {str(e)}")
+                print(f"[SD] Parse error: {str(e)}")
                 return Response(
                     {"error": "Invalid response from AI service."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
