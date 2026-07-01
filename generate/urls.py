@@ -1,6 +1,8 @@
 from django.urls import path
 from .views import (
     ConcatenatePromptsView,
+    GenerationStatusView,
+    GenerationCancelView,
     CharacterListView,
     SkinListByCharacterView,
     SkinListByCharacterAdminView,
@@ -47,6 +49,16 @@ urlpatterns = [
         "concatenate-prompts/",
         ConcatenatePromptsView.as_view(),
         name="concatenate-prompts",
+    ),
+    path(
+        "status/<str:job_id>/",
+        GenerationStatusView.as_view(),
+        name="generation-status",
+    ),
+    path(
+        "cancel/<str:job_id>/",
+        GenerationCancelView.as_view(),
+        name="generation-cancel",
     ),
     path("character/list", CharacterListView.as_view(), name="character-list"),
     path("character/<int:id>/edit", CharacterEditById.as_view(), name="character-edit"),

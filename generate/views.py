@@ -3,6 +3,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 import gc
+import time
+import threading
+from uuid import uuid4
 from .models import (
     Pose,
     Skin,
@@ -18,7 +21,7 @@ from .models import (
 )
 from .utils import modificar_json
 from user_auth.models import Code
-from django.db import transaction
+from django.db import transaction, connection
 from django.core.cache import cache
 
 from rest_framework.permissions import IsAdminUser
@@ -58,281 +61,376 @@ from .services import (
 )
 
 
+# =========================================================================
+#  Generación asíncrona (job_id + polling)
+# =========================================================================
+#
+#  Flujo:
+#   1. POST concatenate-prompts/ -> valida rápido (síncrono), encola el trabajo
+#      pesado en un thread y responde 202 { job_id }.
+#   2. El thread hace la llamada a Stable Diffusion (10-60s), descuenta el uso
+#      del código SOLO si termina con éxito, y guarda el resultado en Redis.
+#   3. GET status/<job_id>/ devuelve el estado desde Redis (polling del front).
+#   4. POST cancel/<job_id>/ marca el job como cancelado (best-effort) para no
+#      cobrar el uso si el usuario aborta.
+#
+#  Todo el estado vive en Redis (cache) con TTL, así que sobrevive a que el
+#  cliente se vaya y vuelva. No se instala nada nuevo: threading (stdlib) +
+#  el Redis que ya usa el proyecto.
+
+GENERATION_LOCK_KEY = "view_locked"
+GENERATION_LOCK_TIMEOUT = 105   # SD timeout (90s) + buffer; se autolibera si el proceso muere
+JOB_TTL = 900                   # 15 min de vida del estado del job en Redis
+JOB_MAX_RUNTIME = 150           # si un job sigue "processing" más de esto, se da por muerto
+
+
+def _job_key(job_id):
+    return f"job:{job_id}"
+
+
+def _cancel_key(job_id):
+    return f"job_cancel:{job_id}"
+
+
+def _run_generation(job_id, request_code, modified_data, sd_url):
+    """Corre en un thread aparte: llamada pesada a SD, consumo del código y
+    persistencia del resultado en Redis. Libera el lock global al terminar."""
+    try:
+        cache.set(_job_key(job_id), {"status": "processing", "started_at": time.time()}, timeout=JOB_TTL)
+
+        # cancelación temprana, antes de gastar recursos
+        if cache.get(_cancel_key(job_id)):
+            cache.set(_job_key(job_id), {"status": "failed", "error": "Cancelled by user."}, timeout=JOB_TTL)
+            return
+
+        print(f"[SD] Calling: {sd_url}")
+        try:
+            response = requests.post(sd_url, json=modified_data, stream=True, timeout=90)
+            print(f"[SD] Response status: {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            print(f"[SD] Request error: {type(e).__name__}: {str(e)}")
+            cache.set(_job_key(job_id), {"status": "failed", "error": "The AI is unavailable. Please try again later."}, timeout=JOB_TTL)
+            return
+
+        if response.status_code != 200:
+            print(f"[SD] Error status {response.status_code} | body: {response.text[:500]}")
+            cache.set(_job_key(job_id), {"status": "failed", "error": "The AI is unavailable. Please try again later."}, timeout=JOB_TTL)
+            return
+
+        try:
+            chunks = [chunk for chunk in response.iter_content(chunk_size=8192) if chunk]
+            print(f"[SD] Chunks received: {len(chunks)}, total bytes: {sum(len(c) for c in chunks)}")
+
+            if not chunks:
+                print("[SD] Empty response from AI")
+                cache.set(_job_key(job_id), {"status": "failed", "error": "Empty response from AI service."}, timeout=JOB_TTL)
+                return
+
+            response_data = json.loads(b''.join(chunks).decode('utf-8'))
+            images = response_data.get("images")
+            print(f"[SD] Images in response: {len(images) if images else 0}")
+
+            if not images:
+                print(f"[SD] Response keys: {list(response_data.keys())}")
+                cache.set(_job_key(job_id), {"status": "failed", "error": "No images generated."}, timeout=JOB_TTL)
+                return
+
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            print(f"[SD] Parse error: {str(e)}")
+            cache.set(_job_key(job_id), {"status": "failed", "error": "Invalid response from AI service."}, timeout=JOB_TTL)
+            return
+
+        # ¿cancelado mientras generaba? -> no cobrar el uso
+        if cache.get(_cancel_key(job_id)):
+            cache.set(_job_key(job_id), {"status": "failed", "error": "Cancelled by user."}, timeout=JOB_TTL)
+            return
+
+        # --- Descontar uso (transacción corta, solo escribe). Solo tras éxito. ---
+        try:
+            with transaction.atomic():
+                code = Code.objects.select_for_update().get(code=request_code)
+                if not code.use_code():
+                    cache.set(_job_key(job_id), {"status": "failed", "error": "The code has no uses left."}, timeout=JOB_TTL)
+                    return
+                uses_left = code.max_uses - code.uses
+                tier = code.tier
+                code_str = code.code
+        except Code.DoesNotExist:
+            cache.set(_job_key(job_id), {"status": "failed", "error": "Invalid code."}, timeout=JOB_TTL)
+            return
+
+        cache.set(_job_key(job_id), {
+            "status": "completed",
+            "images": images,
+            "tier": tier,
+            "uses_left": uses_left,
+            "code": code_str,
+        }, timeout=JOB_TTL)
+
+    except Exception as e:
+        print(f"[job {job_id}] Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        cache.set(_job_key(job_id), {"status": "failed", "error": "An unexpected error occurred."}, timeout=JOB_TTL)
+    finally:
+        cache.delete(GENERATION_LOCK_KEY)   # liberar el lock global de generación
+        connection.close()                  # cerrar la conexión de BD propia del thread
+
+
 class ConcatenatePromptsView(APIView):
     def post(self, request):
-        if cache.get("view_locked"):
+        # rechazo rápido si ya hay una generación en curso
+        if cache.get(GENERATION_LOCK_KEY):
             return Response(
                 {"error": "The view is currently locked. Please try again later."},
                 status=status.HTTP_423_LOCKED,
             )
 
-        # TTL = SD timeout + buffer. El finally libera antes si termina antes.
-        cache.set("view_locked", True, timeout=105)
+        data = request.data
+        request_code = data.get("code")
 
+        clip_skip = data.get("clip_skip", 2)
         try:
-            data = request.data
-            request_code = data.get("code")
-
-            clip_skip = data.get("clip_skip", 2)
-            try:
-                clip_skip = int(clip_skip)
-                if clip_skip < 1 or clip_skip > 12:
-                    clip_skip = 2
-            except (ValueError, TypeError):
+            clip_skip = int(clip_skip)
+            if clip_skip < 1 or clip_skip > 12:
                 clip_skip = 2
+        except (ValueError, TypeError):
+            clip_skip = 2
 
-            # --- Transacción 1: solo validar el código (sale rápido) ---
-            try:
-                with transaction.atomic():
-                    code = Code.objects.select_for_update().get(code=request_code)
+        # --- Validar el código (solo lectura; el consumo se hace al final, en el worker) ---
+        try:
+            code = Code.objects.get(code=request_code)
+        except Code.DoesNotExist:
+            return Response(
+                {"error": "Invalid code."}, status=status.HTTP_406_NOT_ACCEPTABLE
+            )
 
-                    if not code.is_valid():
-                        return Response(
-                            {"error": "The code has no uses left."},
-                            status=status.HTTP_406_NOT_ACCEPTABLE,
-                        )
+        if not code.is_valid():
+            return Response(
+                {"error": "The code has no uses left."},
+                status=status.HTTP_406_NOT_ACCEPTABLE,
+            )
 
-                    code_tier = code.tier
-                    if not code_tier:
-                        return Response(
-                            {"error": "The code does not have a valid tier."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-            except Code.DoesNotExist:
-                return Response(
-                    {"error": "Invalid code."}, status=status.HTTP_401_UNAUTHORIZED
-                )
+        code_tier = code.tier
+        if not code_tier:
+            return Response(
+                {"error": "The code does not have a valid tier."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-            # --- Construcción de prompts (lecturas simples, sin transacción) ---
-            prompts = []
-            neg_prompts = []
+        # --- Construcción de prompts (lecturas simples, sin transacción) ---
+        prompts = []
+        neg_prompts = []
 
-            pose_name = data.get("pose")
-            controlnet = data.get("poseControl")
-            img_base_64 = None
+        pose_name = data.get("pose")
+        controlnet = data.get("poseControl")
+        img_base_64 = None
 
-            if pose_name:
-                controlnet = None
+        if pose_name:
+            controlnet = None
 
-            if pose_name and not controlnet:
-                pose = Pose.objects.filter(name=pose_name).first()
-                if pose:
-                    if not check_tier(pose.tier, code_tier):
-                        return Response(
-                            {"error": "The code does not have the required tier to access this pose."},
-                            status=status.HTTP_403_FORBIDDEN,
-                        )
-                    if pose.prompt:
-                        cleaned_prompt = extract_neg_prompt(pose.prompt, neg_prompts)
-                        prompts.append(cleaned_prompt)
-
-            if controlnet:
-                image = ControlPose.objects.filter(id=controlnet).first()
-                if image:
-                    print(code_tier)
-                    if not check_tier("tier5", code_tier):
-                        return Response(
-                            {"error": "The code does not have the required tier to access this Controlpose."},
-                            status=status.HTTP_403_FORBIDDEN,
-                        )
-                    if image.url_img:
-                        img_base_64 = get_base64_from_url(image.url_img)
-
-            character_name = data.get("character")
-            if character_name:
-                try:
-                    character = Character.objects.get(name=character_name)
-
-                    if not check_tier(character.tier, code_tier):
-                        return Response(
-                            {"error": "The code does not have the required tier to access this character"},
-                            status=status.HTTP_403_FORBIDDEN,
-                        )
-
-                    skin_name = data.get("skin")
-                    if skin_name:
-                        skin = Skin.objects.filter(character=character, name=skin_name).first()
-                        if skin:
-                            if not check_tier(skin.tier, code_tier):
-                                return Response(
-                                    {"error": "The code does not have the required tier to access this skin"},
-                                    status=status.HTTP_403_FORBIDDEN,
-                                )
-                            cleaned_prompt = extract_neg_prompt(skin.prompt, neg_prompts)
-                            prompts.append(cleaned_prompt)
-                        else:
-                            return Response(
-                                {"error": "Skin not found for the given character."},
-                                status=status.HTTP_404_NOT_FOUND,
-                            )
-                    else:
-                        return Response(
-                            {"error": "Skin name is required."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                except Character.DoesNotExist:
+        if pose_name and not controlnet:
+            pose = Pose.objects.filter(name=pose_name).first()
+            if pose:
+                if not check_tier(pose.tier, code_tier):
                     return Response(
-                        {"error": "Character not found."},
-                        status=status.HTTP_404_NOT_FOUND,
+                        {"error": "The code does not have the required tier to access this pose."},
+                        status=status.HTTP_403_FORBIDDEN,
                     )
+                if pose.prompt:
+                    cleaned_prompt = extract_neg_prompt(pose.prompt, neg_prompts)
+                    prompts.append(cleaned_prompt)
 
-            emotion = data.get("emotion")
-            if emotion:
-                emote = Emote.objects.filter(name=emotion).first()
-                if emote:
-                    prompts.append(emote.prompt)
-
-            image_type = data.get("image")
-            image_type_instance = None
-            if image_type:
-                image_type_instance = ImageType.objects.filter(name=image_type).first()
-                if image_type_instance:
-                    prompts.append(image_type_instance.prompt)
-
-            additional_specials = data.get("additionalSpecial", [])
-            new_prompts = prompts.copy()
-
-            print(f"Initial prompts: {new_prompts}")
-
-            if additional_specials:
-                print(f"Processing additionalSpecial with {len(additional_specials)} items")
-
-                new_prompts, success = validate_and_process_specials(
-                    additional_specials,
-                    code_tier,
-                    prompts.copy(),
-                    neg_prompts
-                )
-
-                if not success or new_prompts is None:
+        if controlnet:
+            image = ControlPose.objects.filter(id=controlnet).first()
+            if image:
+                print(code_tier)
+                if not check_tier("tier5", code_tier):
                     return Response(
-                        {"error": "The code does not have the required tier to access this special or does not exist."},
+                        {"error": "The code does not have the required tier to access this Controlpose."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if image.url_img:
+                    img_base_64 = get_base64_from_url(image.url_img)
+
+        character_name = data.get("character")
+        if character_name:
+            try:
+                character = Character.objects.get(name=character_name)
+
+                if not check_tier(character.tier, code_tier):
+                    return Response(
+                        {"error": "The code does not have the required tier to access this character"},
                         status=status.HTTP_403_FORBIDDEN,
                     )
 
-                print(f"Prompts after processing additionalSpecial: {new_prompts}")
-
-            if not new_prompts:
-                return Response(
-                    {"error": "No valid resources found or you do not have the required tier."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            concatenated_prompts = ", ".join(new_prompts)
-            concatenated_neg_prompts = ", ".join(neg_prompts)
-
-            print(f"Final concatenated_prompts: {concatenated_prompts}")
-            print(f"Final concatenated_neg_prompts: {concatenated_neg_prompts}")
-            print(f"Clip Skip value: {clip_skip}")
-
-            file_path = "generate/plantilla.json"
-
-            try:
-                modified_data = modificar_json(
-                    file_path,
-                    concatenated_prompts,
-                    concatenated_prompts,
-                    concatenated_neg_prompts,
-                    image_type_instance,
-                    img_base_64,
-                    clip_skip
-                )
-            except Exception as e:
-                print(f"Error in modificar_json: {str(e)}")
-                return Response(
-                    {"error": "Failed to prepare request data."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-            modified_data["prompt"] = format_commas(modified_data["prompt"])
-
-            # --- Llamado al SD fuera de cualquier transacción ---
-            sd_url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
-            print(f"[SD] Calling: {sd_url}")
-
-            try:
-                response = requests.post(sd_url, json=modified_data, stream=True, timeout=90)
-                print(f"[SD] Response status: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                print(f"[SD] Request error: {type(e).__name__}: {str(e)}")
-                return Response(
-                    {"error": "The AI is unavailable. Please try again later."},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-
-            if response.status_code != 200:
-                print(f"[SD] Error status {response.status_code} | body: {response.text[:500]}")
-                return Response(
-                    {"error": "The AI is unavailable. Please try again later."},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-
-            try:
-                chunks = []
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        chunks.append(chunk)
-
-                print(f"[SD] Chunks received: {len(chunks)}, total bytes: {sum(len(c) for c in chunks)}")
-
-                if not chunks:
-                    print("[SD] Empty response from AI")
+                skin_name = data.get("skin")
+                if skin_name:
+                    skin = Skin.objects.filter(character=character, name=skin_name).first()
+                    if skin:
+                        if not check_tier(skin.tier, code_tier):
+                            return Response(
+                                {"error": "The code does not have the required tier to access this skin"},
+                                status=status.HTTP_403_FORBIDDEN,
+                            )
+                        cleaned_prompt = extract_neg_prompt(skin.prompt, neg_prompts)
+                        prompts.append(cleaned_prompt)
+                    else:
+                        return Response(
+                            {"error": "Skin not found for the given character."},
+                            status=status.HTTP_404_NOT_FOUND,
+                        )
+                else:
                     return Response(
-                        {"error": "Empty response from AI service."},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-
-                response_data = json.loads(b''.join(chunks).decode('utf-8'))
-                images = response_data.get("images")
-                print(f"[SD] Images in response: {len(images) if images else 0}")
-
-                if not images:
-                    print(f"[SD] Response keys: {list(response_data.keys())}")
-                    return Response(
-                        {"error": "No images generated."},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                print(f"[SD] Parse error: {str(e)}")
-                return Response(
-                    {"error": "Invalid response from AI service."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-            # --- Transacción 2: descontar uso (corta, solo escribe) ---
-            with transaction.atomic():
-                code = Code.objects.select_for_update().get(code=request_code)
-                uses_left = code.max_uses - code.uses
-                if not code.use_code():
-                    return Response(
-                        {"error": "Failed to use the code. Please try again."},
+                        {"error": "Skin name is required."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            compressed_images = response_data.get("images")
+            except Character.DoesNotExist:
+                return Response(
+                    {"error": "Character not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
-            return Response(
-                {
-                    "images": compressed_images,
-                    "tier": code.tier,
-                    "uses_left": uses_left,
-                    "code": code.code,
-                },
-                status=status.HTTP_200_OK,
+        emotion = data.get("emotion")
+        if emotion:
+            emote = Emote.objects.filter(name=emotion).first()
+            if emote:
+                prompts.append(emote.prompt)
+
+        image_type = data.get("image")
+        image_type_instance = None
+        if image_type:
+            image_type_instance = ImageType.objects.filter(name=image_type).first()
+            if image_type_instance:
+                prompts.append(image_type_instance.prompt)
+
+        additional_specials = data.get("additionalSpecial", [])
+        new_prompts = prompts.copy()
+
+        print(f"Initial prompts: {new_prompts}")
+
+        if additional_specials:
+            print(f"Processing additionalSpecial with {len(additional_specials)} items")
+
+            new_prompts, success = validate_and_process_specials(
+                additional_specials,
+                code_tier,
+                prompts.copy(),
+                neg_prompts
             )
 
+            if not success or new_prompts is None:
+                return Response(
+                    {"error": "The code does not have the required tier to access this special or does not exist."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            print(f"Prompts after processing additionalSpecial: {new_prompts}")
+
+        if not new_prompts:
+            return Response(
+                {"error": "No valid resources found or you do not have the required tier."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        concatenated_prompts = ", ".join(new_prompts)
+        concatenated_neg_prompts = ", ".join(neg_prompts)
+
+        print(f"Final concatenated_prompts: {concatenated_prompts}")
+        print(f"Final concatenated_neg_prompts: {concatenated_neg_prompts}")
+        print(f"Clip Skip value: {clip_skip}")
+
+        file_path = "generate/plantilla.json"
+
+        try:
+            modified_data = modificar_json(
+                file_path,
+                concatenated_prompts,
+                concatenated_prompts,
+                concatenated_neg_prompts,
+                image_type_instance,
+                img_base_64,
+                clip_skip
+            )
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error in modificar_json: {str(e)}")
+            return Response(
+                {"error": "Failed to prepare request data."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        modified_data["prompt"] = format_commas(modified_data["prompt"])
+
+        sd_url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
+
+        # --- Adquirir el lock global de forma atómica; si otro ganó, está ocupado ---
+        if not cache.add(GENERATION_LOCK_KEY, True, timeout=GENERATION_LOCK_TIMEOUT):
+            return Response(
+                {"error": "The view is currently locked. Please try again later."},
+                status=status.HTTP_423_LOCKED,
+            )
+
+        # --- Encolar el trabajo pesado en un thread y responder al instante ---
+        job_id = uuid4().hex
+        try:
+            cache.set(_job_key(job_id), {"status": "pending"}, timeout=JOB_TTL)
+            thread = threading.Thread(
+                target=_run_generation,
+                args=(job_id, request_code, modified_data, sd_url),
+                daemon=True,
+            )
+            thread.start()
+        except Exception as e:
+            cache.delete(GENERATION_LOCK_KEY)
+            print(f"Failed to enqueue generation: {str(e)}")
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        finally:
-            cache.delete("view_locked")
+
+        return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
+
+
+class GenerationStatusView(APIView):
+    """Polling del front. Devuelve 200 con el estado del job desde Redis."""
+
+    def get(self, request, job_id):
+        data = cache.get(_job_key(job_id))
+        if data is None:
+            # job inexistente o expirado -> el front corta el polling y muestra error
+            return Response(
+                {"status": "failed", "error": "Job not found or expired."},
+                status=status.HTTP_200_OK,
+            )
+
+        # salvaguarda: si el proceso murió a mitad, el job quedaría "processing"
+        # para siempre. Si supera el tiempo máximo razonable, lo damos por muerto.
+        if data.get("status") in ("pending", "processing"):
+            started_at = data.get("started_at")
+            if started_at and (time.time() - started_at) > JOB_MAX_RUNTIME:
+                failed = {"status": "failed", "error": "Generation timed out."}
+                cache.set(_job_key(job_id), failed, timeout=JOB_TTL)
+                cache.delete(GENERATION_LOCK_KEY)
+                return Response(failed, status=status.HTTP_200_OK)
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class GenerationCancelView(APIView):
+    """Cancelación best-effort. Marca el job para no cobrar el uso y corta el polling."""
+
+    def post(self, request, job_id):
+        cache.set(_cancel_key(job_id), True, timeout=JOB_TTL)
+        data = cache.get(_job_key(job_id))
+        # si el job todavía no terminó, reflejamos la cancelación en el estado
+        if data is None or data.get("status") in ("pending", "processing"):
+            cache.set(
+                _job_key(job_id),
+                {"status": "failed", "error": "Cancelled by user."},
+                timeout=JOB_TTL,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 #####
 
