@@ -79,9 +79,15 @@ from .services import (
 #  el Redis que ya usa el proyecto.
 
 GENERATION_LOCK_KEY = "view_locked"
-GENERATION_LOCK_TIMEOUT = 105   # SD timeout (90s) + buffer; se autolibera si el proceso muere
 JOB_TTL = 900                   # 15 min de vida del estado del job en Redis
-JOB_MAX_RUNTIME = 150           # si un job sigue "processing" más de esto, se da por muerto
+# Presupuesto duro de la llamada a SD. Se corta el stream si se pasa, aunque SD
+# siga goteando datos. Ordenado: SD (130) < watchdog (150) < lock (170).
+SD_CONNECT_TIMEOUT = 10         # s para establecer conexión con SD
+SD_TOTAL_TIMEOUT = 130          # s máximo total de la llamada+lectura de SD
+JOB_MAX_RUNTIME = 150           # si un job sigue vivo más de esto, se da por muerto
+# El lock DEBE durar >= JOB_MAX_RUNTIME: si expirase antes, otro dispositivo podría
+# adquirirlo mientras la generación sigue corriendo y lanzar una 2ª llamada a SD.
+GENERATION_LOCK_TIMEOUT = JOB_MAX_RUNTIME + 20   # se autolibera si el proceso muere
 
 
 def _job_key(job_id):
@@ -90,6 +96,13 @@ def _job_key(job_id):
 
 def _cancel_key(job_id):
     return f"job_cancel:{job_id}"
+
+
+def _release_lock(job_id):
+    """Libera el lock global SOLO si este job es su dueño. Evita que un job libere
+    el lock de otro tras un timeout/carrera (liberación en cascada)."""
+    if cache.get(GENERATION_LOCK_KEY) == job_id:
+        cache.delete(GENERATION_LOCK_KEY)
 
 
 def _run_generation(job_id, request_code, modified_data, sd_url):
@@ -103,10 +116,23 @@ def _run_generation(job_id, request_code, modified_data, sd_url):
             cache.set(_job_key(job_id), {"status": "failed", "error": "Cancelled by user."}, timeout=JOB_TTL)
             return
 
+        # Presupuesto total de la llamada a SD (reloj monotónico): si se supera,
+        # cortamos el stream y respondemos failed, pase lo que pase.
+        sd_deadline = time.monotonic() + SD_TOTAL_TIMEOUT
+
         print(f"[SD] Calling: {sd_url}")
         try:
-            response = requests.post(sd_url, json=modified_data, stream=True, timeout=90)
+            response = requests.post(
+                sd_url,
+                json=modified_data,
+                stream=True,
+                timeout=(SD_CONNECT_TIMEOUT, SD_TOTAL_TIMEOUT),
+            )
             print(f"[SD] Response status: {response.status_code}")
+        except requests.exceptions.Timeout:
+            print("[SD] Connection/read timed out")
+            cache.set(_job_key(job_id), {"status": "failed", "error": "The AI took too long to respond. Please try again."}, timeout=JOB_TTL)
+            return
         except requests.exceptions.RequestException as e:
             print(f"[SD] Request error: {type(e).__name__}: {str(e)}")
             cache.set(_job_key(job_id), {"status": "failed", "error": "The AI is unavailable. Please try again later."}, timeout=JOB_TTL)
@@ -114,11 +140,23 @@ def _run_generation(job_id, request_code, modified_data, sd_url):
 
         if response.status_code != 200:
             print(f"[SD] Error status {response.status_code} | body: {response.text[:500]}")
+            response.close()
             cache.set(_job_key(job_id), {"status": "failed", "error": "The AI is unavailable. Please try again later."}, timeout=JOB_TTL)
             return
 
         try:
-            chunks = [chunk for chunk in response.iter_content(chunk_size=8192) if chunk]
+            chunks = []
+            for chunk in response.iter_content(chunk_size=8192):
+                # corte duro por tiempo total: no dejamos que el stream de SD se
+                # alargue más allá de SD_TOTAL_TIMEOUT aunque siga llegando data.
+                if time.monotonic() > sd_deadline:
+                    print("[SD] Total time budget exceeded, aborting stream")
+                    response.close()
+                    cache.set(_job_key(job_id), {"status": "failed", "error": "The AI took too long to respond. Please try again."}, timeout=JOB_TTL)
+                    return
+                if chunk:
+                    chunks.append(chunk)
+
             print(f"[SD] Chunks received: {len(chunks)}, total bytes: {sum(len(c) for c in chunks)}")
 
             if not chunks:
@@ -135,6 +173,12 @@ def _run_generation(job_id, request_code, modified_data, sd_url):
                 cache.set(_job_key(job_id), {"status": "failed", "error": "No images generated."}, timeout=JOB_TTL)
                 return
 
+        except requests.exceptions.RequestException as e:
+            # timeout o corte de conexión A MITAD del stream (lo cubre el read
+            # timeout de requests; aquí lo tratamos como "SD tardó demasiado").
+            print(f"[SD] Stream error: {type(e).__name__}: {str(e)}")
+            cache.set(_job_key(job_id), {"status": "failed", "error": "The AI took too long to respond. Please try again."}, timeout=JOB_TTL)
+            return
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             print(f"[SD] Parse error: {str(e)}")
             cache.set(_job_key(job_id), {"status": "failed", "error": "Invalid response from AI service."}, timeout=JOB_TTL)
@@ -173,20 +217,35 @@ def _run_generation(job_id, request_code, modified_data, sd_url):
         traceback.print_exc()
         cache.set(_job_key(job_id), {"status": "failed", "error": "An unexpected error occurred."}, timeout=JOB_TTL)
     finally:
-        cache.delete(GENERATION_LOCK_KEY)   # liberar el lock global de generación
+        _release_lock(job_id)               # liberar el lock global solo si es nuestro
         connection.close()                  # cerrar la conexión de BD propia del thread
 
 
 class ConcatenatePromptsView(APIView):
     def post(self, request):
-        # rechazo rápido si ya hay una generación en curso
+        data = request.data
+
+        # --- job_id idempotente ---
+        # Lo genera el CLIENTE y lo persiste ANTES de mandar el POST. Así, si la
+        # respuesta se pierde (el móvil bloquea la pantalla y mata el TCP), el
+        # cliente ya conoce el id y puede sondear /status para recoger la imagen.
+        # Si no viene (clientes antiguos), lo generamos aquí como fallback.
+        job_id = data.get("job_id")
+        if not job_id or not isinstance(job_id, str) or len(job_id) > 64:
+            job_id = uuid4().hex
+
+        # Idempotencia: si este job ya existe, NO relanzamos la generación; el
+        # cliente solo tiene que sondear /status/<job_id> para obtener el estado.
+        if cache.get(_job_key(job_id)) is not None:
+            return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
+
+        # rechazo rápido si ya hay OTRA generación en curso
         if cache.get(GENERATION_LOCK_KEY):
             return Response(
                 {"error": "The view is currently locked. Please try again later."},
                 status=status.HTTP_423_LOCKED,
             )
 
-        data = request.data
         request_code = data.get("code")
 
         clip_skip = data.get("clip_skip", 2)
@@ -364,17 +423,24 @@ class ConcatenatePromptsView(APIView):
 
         sd_url = f"{URLSD.objects.latest('id').url}/sdapi/v1/txt2img"
 
-        # --- Adquirir el lock global de forma atómica; si otro ganó, está ocupado ---
-        if not cache.add(GENERATION_LOCK_KEY, True, timeout=GENERATION_LOCK_TIMEOUT):
+        # --- Adquirir el lock global de forma atómica, guardando el job_id como
+        #     dueño para que solo este job pueda liberarlo. Si otro ganó, ocupado. ---
+        if not cache.add(GENERATION_LOCK_KEY, job_id, timeout=GENERATION_LOCK_TIMEOUT):
             return Response(
                 {"error": "The view is currently locked. Please try again later."},
                 status=status.HTTP_423_LOCKED,
             )
 
         # --- Encolar el trabajo pesado en un thread y responder al instante ---
-        job_id = uuid4().hex
         try:
-            cache.set(_job_key(job_id), {"status": "pending"}, timeout=JOB_TTL)
+            # started_at desde ya (aún en 'pending'): si el proceso muere antes de
+            # que el thread escriba 'processing', el watchdog de /status igual podrá
+            # dar el job por muerto en vez de dejarlo colgado hasta el TTL.
+            cache.set(
+                _job_key(job_id),
+                {"status": "pending", "started_at": time.time()},
+                timeout=JOB_TTL,
+            )
             thread = threading.Thread(
                 target=_run_generation,
                 args=(job_id, request_code, modified_data, sd_url),
@@ -382,7 +448,7 @@ class ConcatenatePromptsView(APIView):
             )
             thread.start()
         except Exception as e:
-            cache.delete(GENERATION_LOCK_KEY)
+            _release_lock(job_id)
             print(f"Failed to enqueue generation: {str(e)}")
             return Response(
                 {"error": "An unexpected error occurred."},
@@ -411,7 +477,7 @@ class GenerationStatusView(APIView):
             if started_at and (time.time() - started_at) > JOB_MAX_RUNTIME:
                 failed = {"status": "failed", "error": "Generation timed out."}
                 cache.set(_job_key(job_id), failed, timeout=JOB_TTL)
-                cache.delete(GENERATION_LOCK_KEY)
+                _release_lock(job_id)
                 return Response(failed, status=status.HTTP_200_OK)
 
         return Response(data, status=status.HTTP_200_OK)
