@@ -225,6 +225,43 @@ class ConcatenatePromptsView(APIView):
     def post(self, request):
         data = request.data
 
+        # --- Primera "gen": solo validar/setear el code (validate_only) ---
+        # En la primera generación el front NO manda character/skin/pose/etc.,
+        # solo quiere comprobar que el código es válido para setearlo y desbloquear
+        # la UI. Si dejáramos que siguiera el flujo normal, no habría prompts que
+        # construir y caería en "No valid resources found" (o se quedaría colgado),
+        # dejando el front "generando" para siempre.
+        #
+        # Con validate_only=true cortocircuitamos ANTES del lock y de SD: solo
+        # validamos el código, sin consumir uso ni llamar a la IA. Respuesta
+        # síncrona 200. Las siguientes generaciones van por el flujo normal.
+        if data.get("validate_only"):
+            request_code = data.get("code")
+            try:
+                code = Code.objects.get(code=request_code)
+            except Code.DoesNotExist:
+                return Response(
+                    {"error": "Invalid code."}, status=status.HTTP_406_NOT_ACCEPTABLE
+                )
+            if not code.is_valid():
+                return Response(
+                    {"error": "The code has no uses left."},
+                    status=status.HTTP_406_NOT_ACCEPTABLE,
+                )
+            if not code.tier:
+                return Response(
+                    {"error": "The code does not have a valid tier."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {
+                    "valid": True,
+                    "tier": code.tier,
+                    "uses_left": code.max_uses - code.uses,
+                },
+                status=status.HTTP_200_OK,
+            )
+
         # --- job_id idempotente ---
         # Lo genera el CLIENTE y lo persiste ANTES de mandar el POST. Así, si la
         # respuesta se pierde (el móvil bloquea la pantalla y mata el TCP), el

@@ -74,6 +74,32 @@ puedes recuperar la imagen sondeando `status/{job_id}/`.
 
 ---
 
+### 2.1.b. Primera "gen" — solo validar/setear el code (`validate_only`)
+
+En la **primera generación**, cuando el usuario solo mete su código y todavía
+**no** ha elegido character/skin/pose/etc., NO mandes el payload completo: manda
+solo el código con `validate_only: true`. El backend **solo valida el código**
+(no consume uso, no llama a la IA, no toca el lock) y responde **síncrono**.
+
+**Body:**
+```json
+{ "code": "MOMO", "validate_only": true }
+```
+
+**Respuesta OK — `200`:**
+```json
+{ "valid": true, "tier": "premium", "uses_left": 3 }
+```
+
+**Errores:** igual que en el POST normal (`406` código inválido/agotado,
+`400` sin tier). No devuelve `job_id` ni imagen: es solo una comprobación.
+
+> Úsalo solo para setear el code y desbloquear la UI. Las **siguientes**
+> generaciones (con character/skin/pose) van por el flujo normal de abajo,
+> **sin** `validate_only`.
+
+---
+
 ### 2.2. `GET generate/status/{job_id}/` — Sondear (polling)
 
 Llamar **cada 3 s** mientras el job no haya terminado, y también **de inmediato
