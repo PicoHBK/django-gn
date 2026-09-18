@@ -29,6 +29,11 @@ CORS_ALLOWED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
 CORS_ALLOW_ALL_ORIGINS = False
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
 
+# Detras del reverse proxy (nginx + TLS): sin esto Django cree que la conexion
+# es HTTP y genera redirects y URLs absolutas con el esquema equivocado.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 print(CORS_ALLOWED_ORIGINS)
 
 # Application definition
