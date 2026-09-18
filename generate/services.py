@@ -117,15 +117,18 @@ def optimize_image(image_base64):
 
 
 def extract_neg_prompt(main_string, neg_prompts):
-    # Encuentra todo el contenido dentro de <neg:...> y lo agrega a la lista
-    matches = re.findall(r'<neg:(.*?)>', main_string)
+    # Encuentra todo el contenido dentro de <neg:...> y lo agrega a la lista.
+    # DOTALL porque los bloques <neg:> se escriben en varias lineas, un tag
+    # por linea; sin el, "." no cruza el salto y el bloque entero se quedaba
+    # en el prompt positivo.
+    matches = re.findall(r'<neg:(.*?)>', main_string, re.DOTALL)
     
     # Agrega cada coincidencia a la lista de neg_prompts
     for match in matches:
-        neg_prompts.append(match)
+        neg_prompts.append(" ".join(match.split()))
     
     # Elimina las coincidencias de la cadena principal
-    main_string = re.sub(r'<neg:.*?>', '', main_string).strip()
+    main_string = re.sub(r'<neg:.*?>', '', main_string, flags=re.DOTALL).strip()
     
     return main_string
 
