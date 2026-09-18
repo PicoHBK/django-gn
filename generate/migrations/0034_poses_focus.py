@@ -1,9 +1,13 @@
 from django.db import migrations
 
 
-# Grupo Focus: una pose por cada tag de la familia *_focus de Danbooru que
-# aplique a un personaje, todas tier1, cada una con el ImageType cuya
-# proporcion le corresponde.
+# Grupo Focus: solo los *_focus mas usados de Danbooru y solo de mujer, todos
+# tier1, cada uno con el ImageType cuya proporcion le corresponde.
+#
+# Fuera: penis_focus y pectoral_focus por ser de hombre. Fuera tambien la cola
+# larga de la familia, que existe pero casi no se usa: mouth_focus (461),
+# clothes_focus (743), navel_focus (825), hair_focus (890), footwear_focus
+# (1.111).
 #
 # OJO, la familia es TODA SINGULAR. Estos no existen (0 posts):
 #   thighs_focus, feet_focus, breasts_focus, legs_focus, face_focus
@@ -18,24 +22,15 @@ from django.db import migrations
 # (tag, nombre, ImageType, posts en danbooru)
 POSES = [
     ("(eye focus:1.5),(looking at viewer:1.3)", "Focus-Face", "Portrait", 4235),
-    ("(eye focus:1.5)", "Focus-Eyes", "Portrait", 4235),
-    ("(mouth focus:1.5)", "Focus-Mouth", "Portrait", 461),
-    ("(hair focus:1.5)", "Focus-Hair", "Portrait", 890),
     ("(breast focus:1.5)", "Focus-Breasts", "Cowboy Shot", 4351),
     ("(back focus:1.5)", "Focus-Back", "Cowboy Shot", 2840),
     ("(ass focus:1.5)", "Focus-Ass", "4:3", 46383),
     ("(hip focus:1.5)", "Focus-Hips", "4:3", 16246),
-    ("(navel focus:1.5)", "Focus-Navel", "1:1", 825),
-    ("(crotch focus:1.5)", "Focus-Crotch", "1:1", 1990),
-    ("(pussy focus:1.5)", "Focus-Pussy", "1:1", 1154),
-    ("(penis focus:1.5)", "Focus-Penis", "1:1", 974),
     ("(hand focus:1.5)", "Focus-Hands", "1:1", 2824),
     ("(armpit focus:1.5)", "Focus-Armpits", "1:1", 4354),
     ("(thigh focus:1.5)", "Focus-Thighs", "3:4", 1272),
     ("(foot focus:1.5)", "Focus-Feet", "3:4", 37824),
-    ("(footwear focus:1.5)", "Focus-Footwear", "3:4", 1111),
     ("(leg focus:1.5)", "Focus-Legs", "Full Body", 811),
-    ("(clothes focus:1.5)", "Focus-Clothes", "Full Body", 743),
 ]
 
 
