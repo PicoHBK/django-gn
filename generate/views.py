@@ -392,14 +392,19 @@ class ConcatenatePromptsView(APIView):
         if emotion:
             emote = Emote.objects.filter(name=emotion).first()
             if emote:
-                prompts.append(emote.prompt)
+                # el emote tambien puede traer su bloque <neg:>
+                prompts.append(extract_neg_prompt(emote.prompt, neg_prompts))
 
         image_type = data.get("image")
         image_type_instance = None
         if image_type:
             image_type_instance = ImageType.objects.filter(name=image_type).first()
             if image_type_instance:
-                prompts.append(image_type_instance.prompt)
+                # el ImageType tambien puede traer su bloque <neg:>, que es
+                # como pide que no le recorte la cabeza ni los pies
+                prompts.append(
+                    extract_neg_prompt(image_type_instance.prompt, neg_prompts)
+                )
 
         additional_specials = data.get("additionalSpecial", [])
         new_prompts = prompts.copy()
